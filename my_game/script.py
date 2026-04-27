@@ -14,6 +14,7 @@ class Start(ScriptScene):
     id = "start"
     bg = "__my_bg_lab__"
     left = "__my_char_protagonist__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "我……这是在哪儿？")
@@ -33,6 +34,7 @@ class Question(ScriptScene):
     bg = "__my_bg_lab__"
     left = "__my_char_mystery__"
     right = "__my_char_protagonist__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "到底是什么实验？为什么我在这里？")
@@ -54,6 +56,7 @@ class Explore(ScriptScene):
     id = "explore"
     bg = "__my_bg_lab__"
     left = "__my_char_protagonist__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "（环顾实验室，各种仪器闪烁着微光）")
@@ -78,6 +81,7 @@ class LabDeep(ScriptScene):
     id = "lab_deep"
     bg = "__my_bg_lab__"
     right = "__my_char_protagonist__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "（实验室深处有一面巨大的显示屏）")
@@ -102,6 +106,7 @@ class Garden(ScriptScene):
     bg = "__my_bg_garden__"
     left = "__my_char_protagonist__"
     right = "__my_char_companion__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "（眼前的景象令人窒息——无尽的银色花海在微风中摇曳）")
@@ -136,6 +141,7 @@ class EndA(ScriptScene):
     bg = "__my_bg_garden__"
     left = "__my_char_companion__"
     right = "__my_char_protagonist__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "（握住艾达的手）无论重来多少次，我都会选择记住你。")
@@ -156,6 +162,7 @@ class EndB(ScriptScene):
     id = "ending_b"
     bg = "__my_bg_corridor__"
     left = "__my_char_protagonist__"
+    bgm = "01. ヨスガノソラ メインテーマ -遠い空へ-.flac"
 
     def define(self):
         self.say("林夕", "（后退一步）对不起……我……我需要时间消化这些。")

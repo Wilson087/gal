@@ -39,23 +39,45 @@ class Scene:
 
     def __init__(self, scene_id: str, bg: str = "",
                  left: Optional[str] = None,
-                 right: Optional[str] = None) -> None:
+                 right: Optional[str] = None,
+                 bgm: Optional[str] = None) -> None:
+        """初始化场景。
+
+        Args:
+            scene_id: 场景唯一标识。
+            bg: 背景标识符。
+            left: 左侧立绘标识符。
+            right: 右侧立绘标识符。
+            bgm: 背景音乐路径（.wav），None 表示不改变当前 BGM。
+        """
         self.id = scene_id
         self.bg = bg
         self.left = left
         self.right = right
+        self.bgm = bgm
         self.dialogues: list[dict] = []
         self._choices: Optional[list[dict]] = None
 
     def dialogue(self, speaker: str, text: str,
                  left: Optional[str] = None,
-                 right: Optional[str] = None) -> "Scene":
-        """添加一句对白。"""
+                 right: Optional[str] = None,
+                 sfx: Optional[str] = None) -> "Scene":
+        """添加一句对白。
+
+        Args:
+            speaker: 说话角色名。
+            text: 对白文本。
+            left: 本句切换左侧立绘。
+            right: 本句切换右侧立绘。
+            sfx: 本句播放的音效路径（.wav）。
+        """
         entry: dict[str, str] = {"speaker": speaker, "text": text}
         if left is not None:
             entry["character_left"] = left
         if right is not None:
             entry["character_right"] = right
+        if sfx is not None:
+            entry["sfx"] = sfx
         self.dialogues.append(entry)
         return self
 
@@ -75,6 +97,8 @@ class Scene:
             "characters": {"left": self.left, "right": self.right},
             "dialogue": self.dialogues,
         }
+        if self.bgm is not None:
+            result["bgm"] = self.bgm
         if self._choices:
             result["choices"] = self._choices
         return result
@@ -148,9 +172,10 @@ class ScriptScene(Scene):
     bg: str = ""
     left: Optional[str] = None
     right: Optional[str] = None
+    bgm: Optional[str] = None
 
     def __init__(self) -> None:
-        super().__init__(self.id, self.bg, self.left, self.right)
+        super().__init__(self.id, self.bg, self.left, self.right, self.bgm)
 
     def define(self) -> None:
         """重写此方法，在其中调用 self.say() / self.ask() 定义场景内容。"""
@@ -158,9 +183,10 @@ class ScriptScene(Scene):
 
     def say(self, speaker: str, text: str,
             left: Optional[str] = None,
-            right: Optional[str] = None) -> "ScriptScene":
+            right: Optional[str] = None,
+            sfx: Optional[str] = None) -> "ScriptScene":
         """添加一句对白（dialogue 的别名，与 define() 搭配更自然）。"""
-        self.dialogue(speaker, text, left, right)
+        self.dialogue(speaker, text, left, right, sfx)
         return self
 
     def ask(self, *options: tuple[str, str]) -> "ScriptScene":
@@ -218,9 +244,19 @@ class ScriptBase(NovelScript):
 #  便捷函数（函数式风格）
 # ========================================================================
 
-def make_dialogue(speaker: str, text: str, **kwargs) -> dict:
-    """创建一句对白条目字典。"""
+def make_dialogue(speaker: str, text: str,
+                  sfx: Optional[str] = None, **kwargs) -> dict:
+    """创建一句对白条目字典。
+
+    Args:
+        speaker: 说话角色名。
+        text: 对白文本。
+        sfx: 本句音效路径（可选）。
+        **kwargs: 其他字段（如 character_left, character_right）。
+    """
     entry: dict = {"speaker": speaker, "text": text}
+    if sfx is not None:
+        entry["sfx"] = sfx
     entry.update(kwargs)
     return entry
 
@@ -233,15 +269,28 @@ def make_choice(text: str, next_scene: str) -> dict:
 def make_scene(scene_id: str, bg: str = "",
                left: Optional[str] = None,
                right: Optional[str] = None,
+               bgm: Optional[str] = None,
                dialogues: Optional[list[dict]] = None,
                choices: Optional[list[dict]] = None) -> dict:
-    """创建一个场景字典（纯函数版本）。"""
+    """创建一个场景字典（纯函数版本）。
+
+    Args:
+        scene_id: 场景 ID。
+        bg: 背景标识符。
+        left: 左侧立绘。
+        right: 右侧立绘。
+        bgm: 背景音乐路径（可选）。
+        dialogues: 对白列表。
+        choices: 选项列表。
+    """
     scene: dict = {
         "id": scene_id,
         "background": bg,
         "characters": {"left": left, "right": right},
         "dialogue": dialogues or [],
     }
+    if bgm is not None:
+        scene["bgm"] = bgm
     if choices:
         scene["choices"] = choices
     return scene

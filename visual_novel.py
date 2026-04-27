@@ -54,12 +54,17 @@
   }
 """
 
+import atexit
 import tkinter as tk
 from tkinter import font as tkfont
 import json
 import pickle
 import os
 import random
+import shutil
+import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Optional, Any, Union
 
@@ -112,6 +117,10 @@ PLACEHOLDER_BG_COLORS = {
 # 存档目录
 SAVE_DIR = Path("saves")
 SAVE_FILE_TEMPLATE = "save_{}.dat"
+
+# 音频
+AUDIO_DIR = Path("audio")
+DEFAULT_VOLUME = 80
 
 # 颜色主题
 COLOR_BG_DARK = "#0a0a1a"
@@ -281,6 +290,190 @@ DEMO_SCRIPT = {
 
 
 # ============================================================================
+#  音频引擎
+# ============================================================================
+
+class AudioEngine:
+    """音频引擎：管理 BGM 与 SFX 播放。
+
+    自动选择最佳后端 (ffplay > winsound > none):
+      - ffplay     — 支持 mp3/ogg/flac/wav 等几乎所有格式
+      - winsound   — Windows 内置，仅 .wav，零依赖
+    """
+
+    def __init__(self) -> None:
+        self.volume: int = DEFAULT_VOLUME
+        self.bgm_enabled: bool = True
+        self.sfx_enabled: bool = True
+        self._bgm_path: Optional[str] = None
+        self._bgm_playing: bool = False
+        self._bgm_process: Optional[subprocess.Popen] = None
+        self._bgm_thread: Optional[threading.Thread] = None
+        self._bgm_stop: threading.Event = threading.Event()
+        atexit.register(self.shutdown)
+
+    @property
+    def available(self) -> bool:
+        return self.backend_name != "none"
+
+    @property
+    def backend_name(self) -> str:
+        if shutil.which("ffplay"):
+            return "ffplay"
+        try:
+            import winsound  # noqa: F401
+            return "winsound"
+        except ImportError:
+            return "none"
+
+    def set_volume(self, vol: int) -> None:
+        self.volume = max(0, min(100, vol))
+        if self.volume == 0:
+            self.stop_bgm()
+
+    def get_volume(self) -> int:
+        return self.volume
+
+    def _resolve_path(self, path: str) -> str:
+        p = Path(path)
+        if p.is_absolute():
+            return str(p)
+        candidate = AUDIO_DIR / p
+        if candidate.exists():
+            return str(candidate)
+        # ffplay 后端：搜索常见扩展名
+        if self.backend_name == "ffplay":
+            for ext in [".mp3", ".ogg", ".wav", ".flac", ".m4a", ".opus", ".wma"]:
+                c2 = AUDIO_DIR / f"{p}{ext}"
+                if c2.exists():
+                    return str(c2)
+        if not p.suffix:
+            c2 = AUDIO_DIR / f"{p}.wav"
+            if c2.exists():
+                return str(c2)
+        return str(p)
+
+    def play_bgm(self, path: str) -> None:
+        if not self.bgm_enabled or self.volume == 0:
+            return
+        resolved = self._resolve_path(path)
+        if self._bgm_playing and self._bgm_path == resolved:
+            return
+        self.stop_bgm()
+        self._bgm_path = resolved
+        self._bgm_stop.clear()
+        if not os.path.exists(resolved):
+            return
+        backend = self.backend_name
+        if backend == "ffplay":
+            self._bgm_playing = True
+            self._bgm_thread = threading.Thread(
+                target=self._bgm_loop_ffplay, daemon=True)
+            self._bgm_thread.start()
+        elif backend == "winsound":
+            self._bgm_playing = True
+            self._bgm_thread = threading.Thread(
+                target=self._bgm_loop_winsound, daemon=True)
+            self._bgm_thread.start()
+
+    def _bgm_loop_ffplay(self) -> None:
+        startupinfo = None
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        try:
+            self._bgm_process = subprocess.Popen(
+                ["ffplay", "-nodisp", "-autoexit", "-loop", "0",
+                 "-volume", str(self.volume), self._bgm_path],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                startupinfo=startupinfo,
+            )
+            self._bgm_process.wait()
+        except Exception:
+            pass
+        finally:
+            self._bgm_process = None
+            if not self._bgm_stop.is_set():
+                self._bgm_playing = False
+
+    def _bgm_loop_winsound(self) -> None:
+        import winsound
+        try:
+            winsound.PlaySound(
+                self._bgm_path,
+                winsound.SND_FILENAME | winsound.SND_LOOP | winsound.SND_ASYNC,
+            )
+        except Exception:
+            pass
+        self._bgm_stop.wait()
+
+    def stop_bgm(self) -> None:
+        self._bgm_playing = False
+        self._bgm_stop.set()
+        backend = self.backend_name
+        if backend == "ffplay" and self._bgm_process:
+            try:
+                self._bgm_process.terminate()
+                self._bgm_process.wait(timeout=2)
+            except Exception:
+                try:
+                    self._bgm_process.kill()
+                except Exception:
+                    pass
+            self._bgm_process = None
+        elif backend == "winsound":
+            try:
+                import winsound
+                winsound.PlaySound(None, winsound.SND_PURGE)
+            except Exception:
+                pass
+
+    def play_sfx(self, path: str) -> None:
+        if not self.sfx_enabled or self.volume == 0:
+            return
+        resolved = self._resolve_path(path)
+        if not os.path.exists(resolved):
+            return
+        thread = threading.Thread(
+            target=self._sfx_play_and_restore_bgm,
+            args=(resolved,), daemon=True)
+        thread.start()
+
+    def _sfx_play_and_restore_bgm(self, sfx_path: str) -> None:
+        was_playing = self._bgm_playing
+        prev_bgm = self._bgm_path
+        if was_playing:
+            self.stop_bgm()
+            time.sleep(0.05)
+        backend = self.backend_name
+        if backend == "ffplay":
+            startupinfo = None
+            if os.name == "nt":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            try:
+                subprocess.run(
+                    ["ffplay", "-nodisp", "-autoexit",
+                     "-volume", str(self.volume), sfx_path],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    startupinfo=startupinfo, timeout=60,
+                )
+            except Exception:
+                pass
+        elif backend == "winsound":
+            import winsound
+            try:
+                winsound.PlaySound(sfx_path, winsound.SND_FILENAME)
+            except Exception:
+                pass
+        if was_playing and prev_bgm:
+            self.play_bgm(prev_bgm)
+
+    def shutdown(self) -> None:
+        self.stop_bgm()
+
+
+# ============================================================================
 # 视觉小说游戏主引擎
 # ============================================================================
 
@@ -321,6 +514,9 @@ class VNGame:
 
         # ── 设置 ──────────────────────────────────────────────
         self.text_speed: int = DEFAULT_TEXT_SPEED
+
+        # ── 音频引擎 ──────────────────────────────────────────
+        self.audio = AudioEngine()
 
         # ── UI 组件引用（在 _build_ui 中初始化） ───────────────
         self.canvas: Optional[tk.Canvas] = None
@@ -460,6 +656,9 @@ class VNGame:
 
     def _bind_events(self) -> None:
         """绑定键盘和鼠标事件到对应的处理方法。"""
+        # 窗口关闭时停止音频
+        self.root.protocol("WM_DELETE_WINDOW", self._on_game_close)
+
         # 键盘推进
         self.root.bind("<space>", self._on_advance)
         self.root.bind("<Return>", self._on_advance)
@@ -673,6 +872,14 @@ class VNGame:
             self._show_error_and_exit(f"场景 '{scene_id}' 不存在，剧本可能损坏。")
             return
 
+        # 切换 BGM
+        if "bgm" in scene:
+            bgm_path = scene.get("bgm")
+            if bgm_path:
+                self.audio.play_bgm(bgm_path)
+            else:
+                self.audio.stop_bgm()
+
         # 切换背景
         bg_id = scene.get("background", "")
         self._transition_background(bg_id, on_complete=lambda: (
@@ -703,6 +910,11 @@ class VNGame:
                 if "character_right" in entry:
                     char_data["right"] = entry["character_right"]
                 self._update_characters(char_data)
+
+            # 播放本句音效
+            sfx_path = entry.get("sfx")
+            if sfx_path:
+                self.audio.play_sfx(sfx_path)
 
             self.show_dialogue(text, speaker)
         elif choices:
@@ -1121,6 +1333,11 @@ class VNGame:
     #  推进对话的事件处理
     # ========================================================================
 
+    def _on_game_close(self) -> None:
+        """窗口关闭：停止音频后销毁窗口。"""
+        self.audio.shutdown()
+        self.root.destroy()
+
     def _on_advance(self, event: tk.Event = None) -> None:
         """处理推进对话的输入（Space / 鼠标点击）。
 
@@ -1274,6 +1491,7 @@ class VNGame:
             "scene_id": self.current_scene_id,
             "dialogue_index": self.dialogue_index,
             "text_speed": self.text_speed,
+            "volume": self.audio.get_volume(),
             "history": self.history[-50:],  # 保存最近 50 条
         }
 
@@ -1316,6 +1534,8 @@ class VNGame:
             self.current_scene_id = scene_id
             self.dialogue_index = save_data.get("dialogue_index", 0)
             self.text_speed = save_data.get("text_speed", DEFAULT_TEXT_SPEED)
+            saved_volume = save_data.get("volume", DEFAULT_VOLUME)
+            self.audio.set_volume(saved_volume)
             saved_history = save_data.get("history", [])
             self.history = list(saved_history)
 
@@ -1557,37 +1777,81 @@ class VNGame:
             )
             btn.pack(side="left", padx=6)
 
-        # ── 音量调节（占位） ──
+        # ── 音量调节 ──
         volume_frame = tk.Frame(settings_win, bg=COLOR_BG_DARK)
         volume_frame.pack(fill="x", padx=40, pady=20)
 
         tk.Label(
             volume_frame,
-            text="音量（占位功能）",
+            text="音量",
             font=("微软雅黑", 14),
             fg=COLOR_TEXT_PRIMARY,
             bg=COLOR_BG_DARK,
             anchor="w",
         ).pack(fill="x")
 
+        vol_val_label = tk.Label(
+            volume_frame,
+            text=f"{self.audio.get_volume()}%",
+            font=("微软雅黑", 12),
+            fg=COLOR_TEXT_SPEAKER,
+            bg=COLOR_BG_DARK,
+            anchor="w",
+        )
+        vol_val_label.pack(fill="x", pady=(4, 0))
+
         volume_scale = tk.Scale(
             volume_frame,
             from_=0, to=100,
             orient="horizontal",
             length=400,
+            resolution=5,
             showvalue=False,
-            state="disabled",  # 禁用状态，占位
             bg=COLOR_DIALOGUE_BG,
             fg=COLOR_TEXT_PRIMARY,
             highlightbackground=COLOR_BG_DARK,
             troughcolor="#2c3e50",
+            cursor="hand2",
         )
-        volume_scale.set(80)
+        volume_scale.set(self.audio.get_volume())
         volume_scale.pack(pady=(8, 0))
 
+        def _set_volume(val):
+            vol = int(val)
+            self.audio.set_volume(vol)
+            vol_val_label.config(text=f"{vol}%")
+
+        volume_scale.config(command=_set_volume)
+
+        # 音量预设按钮
+        vol_preset = tk.Frame(settings_win, bg=COLOR_BG_DARK)
+        vol_preset.pack()
+        for label, val in [("静音", 0), ("低", 25), ("中", 50), ("高", 80), ("最大", 100)]:
+            tk.Button(
+                vol_preset,
+                text=label,
+                font=("微软雅黑", 11),
+                bg=COLOR_CHOICE_BG,
+                fg=COLOR_TEXT_PRIMARY,
+                activebackground=COLOR_CHOICE_HOVER,
+                activeforeground=COLOR_TEXT_ACCENT,
+                relief="solid",
+                bd=1,
+                padx=12,
+                cursor="hand2",
+                command=lambda v=val: (volume_scale.set(v), _set_volume(v)),
+            ).pack(side="left", padx=4)
+
+        backend = self.audio.backend_name
+        if backend == "ffplay":
+            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式"
+        elif backend == "winsound":
+            hint_text = "后端: winsound · 仅支持 .wav 格式 · 安装 FFmpeg 可解锁更多格式"
+        else:
+            hint_text = "当前平台无可用音频后端"
         tk.Label(
             volume_frame,
-            text="音量调节尚未实现，此处为 UI 占位",
+            text=hint_text,
             font=("微软雅黑", 10),
             fg="#7f8c8d",
             bg=COLOR_BG_DARK,
@@ -1613,7 +1877,7 @@ class VNGame:
     # ========================================================================
 
     def _clear_all(self) -> None:
-        """清除 Canvas 上所有内容、取消打字机、清理选项。"""
+        """清除 Canvas 上所有内容、取消打字机、清理选项、停止音乐。"""
         self.canvas.delete("all")
         self._cancel_typewriter()
         self._cleanup_choice_frame()
@@ -1622,6 +1886,7 @@ class VNGame:
         self.bg_overlay = None
         self.bg_rect_id = None
         self.bg_label_id = None
+        self.audio.stop_bgm()
 
 
 # ============================================================================

@@ -18,3 +18,13 @@ _VECTOR_PACKAGE = "my_game.resources.vectors"
 _loaded = load_all_vectors_from_package(_VECTOR_PACKAGE)
 if _loaded:
     print(f"[my_game] 已注册 {len(_loaded)} 个矢量图: {', '.join(_loaded)}")
+
+# ── 音频资源说明 ────────────────────────────────────────────────
+# 将音频文件放入 audio/ 目录（项目根目录），
+# 在剧本中用相对路径引用即可，例如:
+#   场景设置: bgm="my_bgm.mp3"
+#   对白设置: sfx="click.wav"
+# 支持的格式取决于后端:
+#   ffplay (推荐) — mp3, ogg, flac, wav, m4a, opus, wma ...
+#   winsound      — 仅 .wav
+# 安装 FFmpeg (ffplay) 即可解锁所有格式。

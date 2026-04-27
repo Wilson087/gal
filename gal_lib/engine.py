@@ -20,6 +20,7 @@ from .renderer import (
     remove_overlay,
     show_notification,
 )
+from .audio import AudioEngine
 
 
 # ========================================================================
@@ -82,6 +83,9 @@ class VNGame:
 
         # ── 设置 ──────────────────────────────────────────────
         self.text_speed: int = DEFAULT_TEXT_SPEED
+
+        # ── 音频引擎 ──────────────────────────────────────────
+        self.audio = AudioEngine()
 
         # ── 立绘引用（供淡入淡出动效使用） ────────────────────
         self.char_left_items: list[int] = []
@@ -225,6 +229,9 @@ class VNGame:
             self.canvas.bind("<Button-1>", self._on_advance)
 
         self.root.bind("<Configure>", self._on_resize)
+
+        # 窗口关闭时停止音频
+        self.root.protocol("WM_DELETE_WINDOW", self._on_game_close)
 
     def _on_resize(self, event: tk.Event) -> None:
         """窗口缩放时更新文字换行宽度。"""
@@ -370,6 +377,15 @@ class VNGame:
             self._show_error_and_exit(f"场景 '{scene_id}' 不存在")
             return
 
+        # 切换 BGM（场景指定 bgm → 播放；bgm 显式空字符串 → 停止）
+        if "bgm" in scene:
+            bgm_path = scene.get("bgm")
+            if bgm_path:
+                self.audio.play_bgm(bgm_path)
+            else:
+                self.audio.stop_bgm()
+        # 场景没有 bgm 字段 → 保持现有 BGM 不中断
+
         def _after_bg():
             self._update_characters(scene.get("characters", {}))
             self._show_current_dialogue()
@@ -399,6 +415,11 @@ class VNGame:
                     char_data["right"] = entry["character_right"]
                 self._update_characters(char_data)
 
+            # 播放本句音效（如果指定了 sfx 字段）
+            sfx_path = entry.get("sfx")
+            if sfx_path:
+                self.audio.play_sfx(sfx_path)
+
             self.show_dialogue(text, speaker)
         elif choices:
             self.show_choices(choices)
@@ -426,6 +447,11 @@ class VNGame:
     # ====================================================================
     #  对话推进事件
     # ====================================================================
+
+    def _on_game_close(self) -> None:
+        """窗口关闭：停止音频后销毁窗口。"""
+        self.audio.shutdown()
+        self.root.destroy()
 
     def _on_advance(self, event: tk.Event = None) -> None:
         """处理推进操作：打字中 -> 跳过；已完成 -> 下一句；标题 -> 开始。"""
@@ -729,6 +755,7 @@ class VNGame:
             "scene_id": self.current_scene_id,
             "dialogue_index": self.dialogue_index,
             "text_speed": self.text_speed,
+            "volume": self.audio.get_volume(),
             "history": self.history[-50:],
         }
 
@@ -768,6 +795,8 @@ class VNGame:
             self.current_scene_id = scene_id
             self.dialogue_index = data.get("dialogue_index", 0)
             self.text_speed = data.get("text_speed", DEFAULT_TEXT_SPEED)
+            saved_volume = data.get("volume", DEFAULT_VOLUME)
+            self.audio.set_volume(saved_volume)
             self.history = list(data.get("history", []))
             self._choosing = False
             self._game_ended = False
@@ -885,7 +914,7 @@ class VNGame:
         """Esc 键弹出设置面板（Toplevel）。"""
         win = tk.Toplevel(self.root)
         win.title("设置")
-        win.geometry("500x420")
+        win.geometry("500x540")
         win.transient(self.root)
         win.grab_set()
         win.configure(bg=COLOR_BG_DARK)
@@ -939,22 +968,60 @@ class VNGame:
                       command=lambda v=val: (scale.set(v), _set_speed(v)),
                       ).pack(side="left", padx=6)
 
-        # ── 音量（占位） ──
+        # ── 音量 ──
         vol_frame = tk.Frame(win, bg=COLOR_BG_DARK)
         vol_frame.pack(fill="x", padx=40, pady=10)
-        tk.Label(vol_frame, text="音量（占位功能）",
+        tk.Label(vol_frame, text="音量",
                  font=("微软雅黑", 14), fg=COLOR_TEXT_PRIMARY,
                  bg=COLOR_BG_DARK, anchor="w").pack(fill="x")
 
-        vs = tk.Scale(vol_frame, from_=0, to=100,
-                      orient="horizontal", length=400,
-                      showvalue=False, state="disabled",
-                      bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
-                      highlightbackground=COLOR_BG_DARK,
-                      troughcolor="#2c3e50")
-        vs.set(80)
-        vs.pack(pady=(8, 0))
-        tk.Label(vol_frame, text="音量调节尚未实现，此处为 UI 占位",
+        vol_val_label = tk.Label(vol_frame,
+                                 text=f"{self.audio.get_volume()}%",
+                                 font=("微软雅黑", 12),
+                                 fg=COLOR_TEXT_SPEAKER, bg=COLOR_BG_DARK,
+                                 anchor="w")
+        vol_val_label.pack(fill="x", pady=(4, 0))
+
+        vol_scale = tk.Scale(vol_frame, from_=0, to=100,
+                             orient="horizontal", length=400,
+                             resolution=5, showvalue=False,
+                             bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
+                             highlightbackground=COLOR_BG_DARK,
+                             troughcolor="#2c3e50", cursor="hand2")
+        vol_scale.set(self.audio.get_volume())
+        vol_scale.pack(pady=(8, 0))
+
+        def _set_volume(val):
+            vol = int(val)
+            self.audio.set_volume(vol)
+            vol_val_label.config(text=f"{vol}%")
+
+        vol_scale.config(command=_set_volume)
+
+        # 音量预设按钮
+        vol_preset = tk.Frame(win, bg=COLOR_BG_DARK)
+        vol_preset.pack(pady=(0, 10))
+        for label, val in [("静音", 0), ("低", 25), ("中", 50), ("高", 80), ("最大", 100)]:
+            tk.Button(vol_preset, text=label,
+                      font=("微软雅黑", 11),
+                      bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
+                      activebackground=COLOR_CHOICE_HOVER,
+                      activeforeground=COLOR_TEXT_ACCENT,
+                      relief="solid", bd=1, padx=12, cursor="hand2",
+                      command=lambda v=val: (vol_scale.set(v), _set_volume(v)),
+                      ).pack(side="left", padx=4)
+
+        # 音频状态提示
+        backend = self.audio.backend_name
+        if backend == "ffplay":
+            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式"
+        elif backend == "winsound":
+            hint_text = "后端: winsound · 仅支持 .wav 格式 · 安装 FFmpeg 可解锁更多格式"
+        elif backend == "none":
+            hint_text = "当前平台无可用音频后端"
+        else:
+            hint_text = f"后端: {backend}"
+        tk.Label(vol_frame, text=hint_text,
                  font=("微软雅黑", 10), fg="#7f8c8d",
                  bg=COLOR_BG_DARK).pack()
 
@@ -969,10 +1036,11 @@ class VNGame:
     # ====================================================================
 
     def _clear_all(self) -> None:
-        """重置 Canvas、取消打字机、清理选项。"""
+        """重置 Canvas、取消打字机、清理选项、停止音乐。"""
         self.canvas.delete("all")
         self._cancel_typewriter()
         self._cleanup_choice_frame()
         self.char_left_items = []
         self.char_right_items = []
         self.bg_overlay = None
+        self.audio.stop_bgm()

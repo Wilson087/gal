@@ -65,6 +65,12 @@ PLACEHOLDER_BG_COLORS = {
 SAVE_DIR          = Path("saves")
 SAVE_FILE_TEMPLATE = "save_{}.dat"
 
+# ── 音频 ──────────────────────────────────────────────────────
+AUDIO_DIR        = Path("audio")      # 音频文件搜索根目录
+DEFAULT_VOLUME   = 80                  # 默认音量 0-100
+BGM_ENABLED      = True               # 默认启用 BGM
+SFX_ENABLED      = True               # 默认启用 SFX
+
 # ── 立绘淡入淡出 stipple 序列 ─────────────────────────────────
 FADE_OUT_STEPPLES = ["", "gray75", "gray50", "gray25", "gray12"]
 FADE_IN_STEPPLES  = ["gray12", "gray25", "gray50", "gray75", ""]
