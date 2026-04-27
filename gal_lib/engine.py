@@ -1014,7 +1014,7 @@ class VNGame:
         # 音频状态提示
         backend = self.audio.backend_name
         if backend == "ffplay":
-            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式"
+            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式 · 实时音量调节"
         elif backend == "winsound":
             hint_text = "后端: winsound · 仅支持 .wav 格式 · 安装 FFmpeg 可解锁更多格式"
         elif backend == "none":

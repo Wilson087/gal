@@ -331,10 +331,11 @@ class AudioEngine:
         self.volume = max(0, min(100, vol))
         if self.volume == 0:
             self.stop_bgm()
-        elif self._bgm_path and (old_vol == 0 or self._bgm_playing):
+        elif old_vol == 0 and self._bgm_path:
             self.stop_bgm()
             time.sleep(0.05)
             self.play_bgm(self._bgm_path)
+        # 0→0 或 >0 之间的调整不重启 BGM
 
     def get_volume(self) -> int:
         return self.volume
@@ -389,7 +390,7 @@ class AudioEngine:
         try:
             self._bgm_process = subprocess.Popen(
                 ["ffplay", "-nodisp", "-autoexit", "-loop", "0",
-                 "-volume", str(self.volume), self._bgm_path],
+                 self._bgm_path],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 startupinfo=startupinfo,
             )
@@ -1849,7 +1850,7 @@ class VNGame:
 
         backend = self.audio.backend_name
         if backend == "ffplay":
-            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式"
+            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式 · 实时音量调节"
         elif backend == "winsound":
             hint_text = "后端: winsound · 仅支持 .wav 格式 · 安装 FFmpeg 可解锁更多格式"
         else:
