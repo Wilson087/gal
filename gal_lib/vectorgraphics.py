@@ -376,7 +376,7 @@ def _draw_image(canvas: tk.Canvas, shape: dict,
     ix = ox + shape.get("x", 0) * sx
     iy = oy + shape.get("y", 0) * sy
 
-    # 整数缩放（zoom / subsample），近似匹配目标尺寸
+    # 整数缩放（先 subsample 再 zoom），近似匹配目标尺寸
     target_w = shape.get("w", 0)
     target_h = shape.get("h", 0)
     if target_w and target_h and sx > 0 and sy > 0:
@@ -384,22 +384,18 @@ def _draw_image(canvas: tk.Canvas, shape: dict,
         if iw and ih:
             need_w = target_w * sx
             need_h = target_h * sy
-            scale_x = need_w / iw
-            scale_y = need_h / ih
-            if scale_x >= 1 and scale_y >= 1:
-                zx = max(1, int(scale_x))
-                zy = max(1, int(scale_y))
-                if zx > 1 or zy > 1:
-                    scaled = photo.zoom(zx, zy)
-                    _image_refs.append(scaled)
-                    photo = scaled
-            elif scale_x < 1 and scale_y < 1:
-                sx_int = max(1, int(1 / scale_x)) if scale_x > 0 else 1
-                sy_int = max(1, int(1 / scale_y)) if scale_y > 0 else 1
-                if sx_int > 1 or sy_int > 1:
-                    scaled = photo.subsample(sx_int, sy_int)
-                    _image_refs.append(scaled)
-                    photo = scaled
+            # 先缩小（图片比目标大）
+            sub_x = max(1, int(iw / need_w)) if need_w < iw else 1
+            sub_y = max(1, int(ih / need_h)) if need_h < ih else 1
+            if sub_x > 1 or sub_y > 1:
+                photo = photo.subsample(sub_x, sub_y)
+                _image_refs.append(photo)
+            # 再放大（图片比目标小）
+            zoom_x = max(1, int(need_w / photo.width())) if need_w >= photo.width() else 1
+            zoom_y = max(1, int(need_h / photo.height())) if need_h >= photo.height() else 1
+            if zoom_x > 1 or zoom_y > 1:
+                photo = photo.zoom(zoom_x, zoom_y)
+                _image_refs.append(photo)
 
     return canvas.create_image(ix, iy, image=photo, anchor="nw", **kw)
 

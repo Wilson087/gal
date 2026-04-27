@@ -5,6 +5,7 @@ Canvas 渲染模块
 所有函数均为无状态的工具函数，不维护任何游戏状态。
 """
 
+import math
 import tkinter as tk
 import random
 from typing import Optional
@@ -16,6 +17,7 @@ from .constants import (
     COLOR_OVERLAY,
     PLACEHOLDER_COLORS,
     PLACEHOLDER_BG_COLORS,
+    DIALOGUE_FRAME_HEIGHT,
 )
 from .vectorgraphics import get_definition, render as vector_render
 
@@ -64,20 +66,32 @@ def render_background(canvas: tk.Canvas, bg_id: str,
         width: 绘制区域宽度（像素）。
         height: 绘制区域高度（像素）。
     """
-    # 清除旧背景
+    # 清除旧背景（保留 transition_overlay 等上层元素）
     canvas.delete("bg")
+
+    # 先用黑色填充整个画布
+    canvas.create_rectangle(0, 0, width, height, fill="#000000", outline="", tags="bg")
 
     # 检查是否有矢量图定义
     vdef = get_definition(bg_id)
     if vdef:
-        vector_render(canvas, vdef, 0, 0,
-                      width=width, height=height,
-                      anchor="nw", tags="bg")
-        return
+        # 保持原始宽高比居中显示（letterbox）
+        vw = vdef.get("width", 1)
+        vh = vdef.get("height", 1)
+        scale = min(width / vw, height / vh)
+        disp_w = int(vw * scale)
+        disp_h = int(vh * scale)
+        offset_x = (width - disp_w) // 2
+        offset_y = (height - disp_h) // 2
 
-    # 回退：占位纯色背景
-    canvas.delete("bg")
+        items = vector_render(canvas, vdef, offset_x, offset_y,
+                              width=disp_w, height=disp_h,
+                              anchor="nw", tags="bg")
+        if items:
+            return
+        # vector_render 返回空（如图片加载失败），继续 fallback
 
+    # 回退：占位纯色背景（此时填充全部画布）
     bg_color, bg_name = get_bg_info(bg_id)
 
     canvas.create_rectangle(
@@ -128,11 +142,13 @@ def draw_character(canvas: tk.Canvas, char_id: str,
     Returns:
         所有绘制项的 Canvas 对象 ID 列表。
     """
-    # 检查是否有矢量图定义
     vdef = get_definition(char_id)
     if vdef:
-        return vector_render(canvas, vdef, x_center, y_bottom,
-                             anchor="s", tags=f"char_{x_center}")
+        items = vector_render(canvas, vdef, x_center, y_bottom,
+                              anchor="s", tags=f"char_{x_center}")
+        if items:
+            return items
+        # vector_render 返回空（如图片加载失败），继续 fallback
 
     # 回退：几何人形
     color, char_name = get_char_info(char_id)
@@ -182,7 +198,7 @@ def draw_character(canvas: tk.Canvas, char_id: str,
 
 
 def clear_characters(canvas: tk.Canvas) -> None:
-    """清除 Canvas 上所有角色立绘（tag = "left_char" / "right_char"）。
+    """清除 Canvas 上所有角色立绘。
 
     Args:
         canvas: 目标 Canvas 控件。
@@ -225,6 +241,66 @@ def remove_overlay(canvas: tk.Canvas, overlay_id: Optional[int]) -> None:
             canvas.delete(overlay_id)
         except tk.TclError:
             pass
+
+
+# ========================================================================
+#  对话框圆角背景
+# ========================================================================
+
+def draw_rounded_rect(canvas: tk.Canvas, x0: int, y0: int,
+                       x1: int, y1: int, r: int = 12,
+                       fill: str = "#12122a", outline: str = "",
+                       width: int = 0, tags: str = "") -> list[int]:
+    """在 Canvas 上绘制圆角矩形。
+
+    使用 4 个圆角 + 1 个填充矩形组合。
+
+    Args:
+        canvas: 目标 Canvas。
+        x0, y0: 左上角坐标。
+        x1, y1: 右下角坐标。
+        r: 圆角半径。
+        fill: 填充颜色。
+        outline: 边框颜色。
+        width: 边框宽度。
+        tags: 标签。
+
+    Returns:
+        绘制项的 ID 列表。
+    """
+    items = []
+    # 主体矩形
+    items.append(canvas.create_rectangle(
+        x0 + r, y0, x1 - r, y1,
+        fill=fill, outline="", tags=tags,
+    ))
+    items.append(canvas.create_rectangle(
+        x0, y0 + r, x1, y1 - r,
+        fill=fill, outline="", tags=tags,
+    ))
+
+    # 四个圆角
+    corners = [
+        (x0 + r, y0 + r, -90, 0),     # 左上
+        (x1 - r, y0 + r, 0, 90),      # 右上
+        (x1 - r, y1 - r, 90, 180),    # 右下
+        (x0 + r, y1 - r, 180, 270),   # 左下
+    ]
+    for cx, cy, start_angle, end_angle in corners:
+        items.append(canvas.create_arc(
+            cx - r, cy - r, cx + r, cy + r,
+            start=start_angle, extent=90,
+            fill=fill, outline="", style="pieslice", tags=tags,
+        ))
+
+    # 边框
+    if outline and width > 0:
+        items.append(canvas.create_rectangle(
+            x0, y0, x1, y1,
+            fill="", outline=outline, width=width, tags=tags,
+        ))
+
+    return items
 
 
 # ========================================================================

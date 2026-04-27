@@ -6,9 +6,7 @@
 import tkinter as tk
 from gal_lib import VNGame
 
-# 注册自定义占位符（必须在创建引擎之前）
 from . import constants  # noqa: F401
-
 from .script import CorridorOfTime
 
 
@@ -17,12 +15,7 @@ def run() -> None:
     root = tk.Tk()
     app = VNGame(root)
     app.load_script(CorridorOfTime().build())
-    app.start_game()
-
-    # 标题点击绑定
-    app.canvas.after(100,
-                     lambda: app.canvas.bind("<Button-1>",
-                                              app._on_title_click))
+    app.start_game()  # 显示主菜单
     root.mainloop()
 
 
