@@ -208,9 +208,9 @@ if sys.platform == "win32":
         dev = c_void_p()
         try:
             vtbl = ctypes.cast(enum_ptr, POINTER(POINTER(c_void_p)))[0]
-            # IMMDeviceEnumerator::GetDefaultAudioEndpoint(index 3)
+            # IMMDeviceEnumerator::GetDefaultAudioEndpoint(index 4)
             GetDefaultAudioEndpoint = ctypes.cast(
-                vtbl[3],
+                vtbl[4],
                 ctypes.CFUNCTYPE(
                     HRESULT, c_void_p, c_int, c_int, POINTER(c_void_p),
                 ),
@@ -271,10 +271,10 @@ if sys.platform == "win32":
                 if hr != 0:
                     continue
 
-                # IAudioSessionControl::GetProcessId(index 7)
+                # IAudioSessionControl::GetProcessId(index 10)
                 vtbl_svc = ctypes.cast(svc, POINTER(POINTER(c_void_p)))[0]
                 GetProcessId = ctypes.cast(
-                    vtbl_svc[7],
+                    vtbl_svc[10],
                     ctypes.CFUNCTYPE(HRESULT, c_void_p, POINTER(DWORD)),
                 )
                 session_pid = DWORD(0)
@@ -295,7 +295,7 @@ if sys.platform == "win32":
                     if hr_qi == 0:
                         vtbl_sa = ctypes.cast(simple, POINTER(POINTER(c_void_p)))[0]
                         SetMasterVolume = ctypes.cast(
-                            vtbl_sa[4],
+                            vtbl_sa[3],
                             ctypes.CFUNCTYPE(
                                 HRESULT, c_void_p, c_float, POINTER(GUID),
                             ),

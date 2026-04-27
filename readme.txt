@@ -1,138 +1,115 @@
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Bash command
+# gal-lib — 视觉小说游戏引擎
 
-   cd "C:/Users/Wilson/Desktop/gal" && "C:\Users\Wilson\AppData\Local\Programs\Python\Python313\python.exe" -c "
-   import sys, os
-   sys.path.insert(0, '.')
+基于 Python 标准库（tkinter）的视觉小说（Galgame）引擎，零第三方依赖。
 
-   # Test package import
-   import sys, os
-   sys.path.insert(0, '.')
+## 快速开始
 
-   # Test package import
-       6
-       7 class TestValidateScript:
-       8     """validate_script 功能测试"""
-       9
-      10     def test_valid_demo_script(self):
-     … +43 lines (ctrl+o to expand)
+```bash
+# 运行演示剧本
+python run_game.py
 
-● Now let me verify everything compiles and the structure is sound.
+# 或运行独立版游戏
+python visual_novel.py
 
-  Searched for 1 pattern (ctrl+o to expand)
+# 运行"时空回廊"剧本
+python run_my_game.py
+```
 
-● Bash("C:\Users\Wilson\AppData\Local\Programs\Python\Python313\python.exe" -c "
-      import ast, os, sys…)
-  ⎿    OK  run_game.py
-       OK  visual_novel.py
-       OK  gal_lib\constants.py
-     … +8 lines (ctrl+o to expand)
+## 功能特性
 
-● Bash(cd "C:/Users/Wilson/Desktop/gal" && "C:\Users\Wilson\AppData\Local\Programs\Python\Python313\python.exe" -c "
-      import sys, os…)
-  ⎿  VNGame: <class 'gal_lib.engine.VNGame'>
-     DEMO_SCRIPT title: ��֮����
-     Scenes count: 8
-     … +7 lines (ctrl+o to expand)
+- **剧本驱动** — JSON 格式定义剧情数据，结构清晰
+- **对话系统** — 底部面板角色名+对白，逐字打字机效果
+- **立绘系统** — 左右双立绘切换，带淡入淡出过渡
+- **背景切换** — Canvas 背景切换，白色淡入淡出
+- **选项分支** — 多选项分支，点击跳转指定场景
+- **音频引擎** — BGM 循环播放 + 每句对白独立音效
+  - 自动检测 ffplay（支持 mp3/ogg/flac/wav）或降级 winsound（仅 wav）
+  - 实时音量调节（Windows COM 接口，不重启音频）
+  - 窗口关闭自动停止播放，atexit 双重兜底
+- **存档/读档** — S 键存档 / L 键读档（pickle 序列化）
+- **文本历史** — H 键查看最近对白
+- **设置面板** — Esc 键打开，调节文字速度与音量
 
-● Imports work. But I noticed engine.py references json.JSONDecodeError without importing json. Let me fix that.
+## 操作方式
 
-  Read 1 file (ctrl+o to expand)
+| 按键 | 功能 |
+|------|------|
+| Space / 鼠标左键 | 推进对话 / 跳过打字效果 |
+| S | 存档 |
+| L | 读档 |
+| H | 文本历史 |
+| Esc | 设置面板 |
 
-● Update(gal_lib\engine.py)
-  ⎿  Added 1 line
-       6  """
-       7
-       8  import tkinter as tk
-       9 +import json
-      10  import pickle
-      11  import os
-      12  from pathlib import Path
+## 项目结构
 
-● Update(gal_lib\engine.py)
-  ⎿  Added 1 line, removed 2 lines
-       8  import tkinter as tk
-       9  import json
-      10  import pickle
-      11 -import os
-      11  from pathlib import Path
-      13 -from typing import Any, Optional
-      12 +from typing import Optional
-      13
-      14  from .constants import *
-      15  from .script import load_from_file, validate_script
+```
+gal/
+├── run_game.py              # 启动入口（演示剧本）
+├── run_my_game.py           # "时空回廊"启动入口
+├── visual_novel.py          # 单文件独立版引擎
+├── pyproject.toml            # 项目元数据
+├── audio/                   # 音频资源目录（放 BGM / SFX）
+├── saves/                   # 存档目录（自动创建）
+├── tests/                   # 单元测试
+└── gal_lib/                 # 核心库
+    ├── __init__.py           # 导出 VNGame, DEMO_SCRIPT, AudioEngine ...
+    ├── constants.py          # 窗口尺寸、颜色、字体等常量
+    ├── script.py             # 演示剧本数据 + 加载/验证函数
+    ├── renderer.py           # Canvas 渲染函数（背景、立绘、遮罩）
+    ├── engine.py             # VNGame 主引擎类
+    ├── audio.py              # AudioEngine 音频引擎
+    ├── scriptbuilder.py      # 面向对象剧本构建器
+    └── vectorgraphics.py     # 矢量图绘制与图片加载
+```
 
-● Update(gal_lib\engine.py)
-  ⎿  Removed 3 lines
-      14  from .constants import *
-      15  from .script import load_from_file, validate_script
-      16  from .renderer import (
-      17 -    get_bg_info,
-      18 -    get_char_info,
-      17      render_background,
-      18      draw_character,
-      21 -    clear_characters,
-      19      create_fade_overlay,
-      20      remove_overlay,
-      21      show_notification,
+## 剧本格式
 
-● Bash(cd "C:/Users/Wilson/Desktop/gal" && "C:\Users\Wilson\AppData\Local\Programs\Python\Python313\python.exe" -Wall -c
-       "
-      14  from .constants import *
-      15  from .script import load_from_file, validate_script
+```json
+{
+  "title": "游戏标题",
+  "scenes": [
+    {
+      "id": "scene1",
+      "background": "__bg_room__",
+      "bgm": "music.mp3",
+      "characters": { "left": "__char_girl__", "right": null },
+      "dialogue": [
+        { "speaker": "角色", "text": "对白内容", "sfx": "click.wav" }
+      ],
+      "choices": [
+        { "text": "选项文字", "next_scene": "scene2" }
+      ]
+    }
+  ]
+}
+```
 
-● Update(gal_lib\engine.py)
-  ⎿  Removed 3 lines
-      14  from .constants import *
-      15  from .script import load_from_file, validate_script
-      16  from .renderer import (
-      17 -    get_bg_info,
-      18 -    get_char_info,
-      17      render_background,
-      18      draw_character,
-      21 -    clear_characters,
-      19      create_fade_overlay,
-      20      remove_overlay,
-      21      show_notification,
+也支持 Python 代码构建剧本：
 
-● Bash(cd "C:/Users/Wilson/Desktop/gal" && "C:\Users\Wilson\AppData\Local\Programs\Python\Python313\python.exe" -Wall -c
-       "
-      import sys; sys.path.insert(0, '.')…)
-  ⎿  <string>:10: ResourceWarning: unclosed file <_io.TextIOWrapper name='gal_lib/__init__.py' mode='r' encoding='u
-     tf-8'>
-     ResourceWarning: Enable tracemalloc to get the object allocation traceback
-     … +19 lines (ctrl+o to expand)
+```python
+from gal_lib.scriptbuilder import NovelScript, Scene
 
-● All imports verified, syntax clean. Here's the final project structure:
+script = NovelScript("我的游戏")
+scene = Scene("start", bg="...", left="...", bgm="bgm.mp3")
+scene.dialogue("角色", "对白", sfx="sfx.wav")
+scene.choices(("选项", "next_scene"))
+script.add_scene(scene)
+game.load_script(script.build())
+```
 
-  gal/
-  ├── run_game.py              ← 启动入口（python run_game.py）
-  ├── pyproject.toml            ← PEP 621 项目元数据（可 pip install）
-  ├── visual_novel.py           ← 原始单文件（保留作备份）
-  ├── saves/                    ← 存档目录（运行时自动创建）
-  ├── tests/
-  │   ├── __init__.py
-  │   └── test_script.py        ← 剧本验证单元测试
-  └── gal_lib/                  ← 核心库包
-      ├── __init__.py            ← 导出 VNGame, DEMO_SCRIPT
-      ├── constants.py           ← 74 行 — 窗口/颜色/字体/占位映射
-      ├── script.py              ← 217 行 — DEMO_SCRIPT + 加载/验证
-      ├── renderer.py            ← 243 行 — Canvas 背景/立绘/遮罩绘制
-      └── engine.py              ← 911 行 — VNGame 主引擎类
+## 音频资源
 
-  模块职责：
+将音频文件放入 `audio/` 目录，在剧本中用相对路径引用：
 
-  ┌──────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │     模块     │                                               内容                                                │
-  ├──────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ constants.py │ 全部常量：尺寸、颜色、字体、动画参数、占位角色/背景映射表                                         │
-  ├──────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ script.py    │ 演示剧本数据 (DEMO_SCRIPT)、load_from_file()、validate_script()                                   │
-  ├──────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ renderer.py  │ 纯函数渲染层：背景绘制、人形立绘绘制、过渡遮罩、通知文字，无状态                                  │
-  ├──────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ engine.py    │ VNGame 类：UI                                                                                     │
-  │              │ 构建、事件绑定、场景切换、打字机、立绘过渡动画、选项分支、存档读档、历史弹窗、设置面板            │
-  └──────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────┘
+- 有 ffmpeg（推荐）：支持 mp3 / ogg / flac / wav / m4a / opus 等
+- 无 ffmpeg：仅支持 .wav（自动降级 winsound）
 
-  运行方式：cd gal && python run_game.py（原 visual_novel.py 保留在目录中不影响）。
+## 依赖
+
+- Python 3.10+
+- 零第三方 Python 包
+- FFmpeg（可选，用于全格式音频支持 + 实时音量调节）
+
+## License
+
+MIT
