@@ -150,9 +150,16 @@ class AudioEngine:
         Args:
             vol: 音量值 0–100。
         """
+        old_vol = self.volume
         self.volume = max(0, min(100, vol))
+
         if self.volume == 0:
             self.stop_bgm()
+        elif self._bgm_path and (old_vol == 0 or self._bgm_playing):
+            # 音量从 0 调大 → 恢复 BGM；播放中调音量 → 用新音量重启
+            self.stop_bgm()
+            time.sleep(0.05)
+            self.play_bgm(self._bgm_path)
 
     def get_volume(self) -> int:
         """获取当前音量。

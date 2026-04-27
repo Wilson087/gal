@@ -327,9 +327,14 @@ class AudioEngine:
             return "none"
 
     def set_volume(self, vol: int) -> None:
+        old_vol = self.volume
         self.volume = max(0, min(100, vol))
         if self.volume == 0:
             self.stop_bgm()
+        elif self._bgm_path and (old_vol == 0 or self._bgm_playing):
+            self.stop_bgm()
+            time.sleep(0.05)
+            self.play_bgm(self._bgm_path)
 
     def get_volume(self) -> int:
         return self.volume
