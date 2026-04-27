@@ -67,7 +67,7 @@ SAVE_FILE_TEMPLATE = "save_{}.dat"
 
 # ── 音频 ──────────────────────────────────────────────────────
 AUDIO_DIR        = Path("audio")      # 音频文件搜索根目录
-DEFAULT_VOLUME   = 80                  # 默认音量 0-100
+DEFAULT_VOLUME   = 100                  # 默认音量 0-100
 BGM_ENABLED      = True               # 默认启用 BGM
 SFX_ENABLED      = True               # 默认启用 SFX
 

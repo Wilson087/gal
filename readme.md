@@ -24,11 +24,11 @@ python run_my_game.py
 - **选项分支** — 多选项分支，点击跳转指定场景
 - **音频引擎** — BGM 循环播放 + 每句对白独立音效
   - 自动检测 ffplay（支持 mp3/ogg/flac/wav）或降级 winsound（仅 wav）
-  - 实时音量调节（Windows COM 接口，不重启音频）
+  - 音量仅支持静音 / 100% 两档，设置面板提供静音复选框
   - 窗口关闭自动停止播放，atexit 双重兜底
 - **存档/读档** — S 键存档 / L 键读档（pickle 序列化）
 - **文本历史** — H 键查看最近对白
-- **设置面板** — Esc 键打开，调节文字速度与音量
+- **设置面板** — Esc 键打开，调节文字速度与静音开关
 
 ## 操作方式
 
@@ -109,6 +109,15 @@ game.load_script(script.build())
 - Python 3.10+
 - 零第三方 Python 包
 - FFmpeg（可选，用于全格式音频支持 + 实时音量调节）
+
+## 更新日志
+
+### v1.1.0
+
+- **音量调节修复** — `set_volume()` 现在通过重启 BGM 来生效，解决了之前 Windows COM `ISimpleAudioVolume` 接口在不同环境下可能失败的问题。
+- **音量控制简化** — 仅保留静音（0）和 100% 两档，删除音量滑块与预设按钮，设置面板替换为静音复选框。
+- **代码清理** — 移除约 270 行不再使用的 Windows COM ctypes 代码（`_set_windows_process_volume` 及相关 GUID/接口定义）。
+- **默认音量** — `DEFAULT_VOLUME` 从 80 改为 100。
 
 ## License
 

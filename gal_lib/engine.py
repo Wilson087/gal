@@ -968,62 +968,24 @@ class VNGame:
                       command=lambda v=val: (scale.set(v), _set_speed(v)),
                       ).pack(side="left", padx=6)
 
-        # ── 音量 ──
-        vol_frame = tk.Frame(win, bg=COLOR_BG_DARK)
-        vol_frame.pack(fill="x", padx=40, pady=10)
-        tk.Label(vol_frame, text="音量",
+        # ── 音频静音开关 ──
+        audio_frame = tk.Frame(win, bg=COLOR_BG_DARK)
+        audio_frame.pack(fill="x", padx=40, pady=10)
+        tk.Label(audio_frame, text="音频",
                  font=("微软雅黑", 14), fg=COLOR_TEXT_PRIMARY,
                  bg=COLOR_BG_DARK, anchor="w").pack(fill="x")
 
-        vol_val_label = tk.Label(vol_frame,
-                                 text=f"{self.audio.get_volume()}%",
-                                 font=("微软雅黑", 12),
-                                 fg=COLOR_TEXT_SPEAKER, bg=COLOR_BG_DARK,
-                                 anchor="w")
-        vol_val_label.pack(fill="x", pady=(4, 0))
-
-        vol_scale = tk.Scale(vol_frame, from_=0, to=100,
-                             orient="horizontal", length=400,
-                             resolution=5, showvalue=False,
-                             bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
-                             highlightbackground=COLOR_BG_DARK,
-                             troughcolor="#2c3e50", cursor="hand2")
-        vol_scale.set(self.audio.get_volume())
-        vol_scale.pack(pady=(8, 0))
-
-        def _set_volume(val):
-            vol = int(val)
-            self.audio.set_volume(vol)
-            vol_val_label.config(text=f"{vol}%")
-
-        vol_scale.config(command=_set_volume)
-
-        # 音量预设按钮
-        vol_preset = tk.Frame(win, bg=COLOR_BG_DARK)
-        vol_preset.pack(pady=(0, 10))
-        for label, val in [("静音", 0), ("低", 25), ("中", 50), ("高", 80), ("最大", 100)]:
-            tk.Button(vol_preset, text=label,
-                      font=("微软雅黑", 11),
-                      bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
-                      activebackground=COLOR_CHOICE_HOVER,
-                      activeforeground=COLOR_TEXT_ACCENT,
-                      relief="solid", bd=1, padx=12, cursor="hand2",
-                      command=lambda v=val: (vol_scale.set(v), _set_volume(v)),
-                      ).pack(side="left", padx=4)
-
-        # 音频状态提示
-        backend = self.audio.backend_name
-        if backend == "ffplay":
-            hint_text = "后端: ffplay · 支持 mp3/ogg/flac/wav 等格式 · 实时音量调节"
-        elif backend == "winsound":
-            hint_text = "后端: winsound · 仅支持 .wav 格式 · 安装 FFmpeg 可解锁更多格式"
-        elif backend == "none":
-            hint_text = "当前平台无可用音频后端"
-        else:
-            hint_text = f"后端: {backend}"
-        tk.Label(vol_frame, text=hint_text,
-                 font=("微软雅黑", 10), fg="#7f8c8d",
-                 bg=COLOR_BG_DARK).pack()
+        mute_state = tk.BooleanVar(value=self.audio.get_volume() == 0)
+        mute_cb = tk.Checkbutton(
+            audio_frame, text="静音", variable=mute_state,
+            font=("微软雅黑", 12), fg=COLOR_TEXT_PRIMARY,
+            bg=COLOR_BG_DARK, selectcolor=COLOR_BG_DARK,
+            activebackground=COLOR_BG_DARK,
+            activeforeground=COLOR_TEXT_PRIMARY,
+            cursor="hand2",
+            command=lambda: self.audio.set_volume(0 if mute_state.get() else 100),
+        )
+        mute_cb.pack(anchor="w", pady=(4, 0))
 
         # ── 关闭 ──
         tk.Button(win, text="关闭", font=FONT_UI, command=win.destroy,
