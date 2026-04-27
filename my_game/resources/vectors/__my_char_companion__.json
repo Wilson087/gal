@@ -1,0 +1,23 @@
+{
+  "width": 170,
+  "height": 400,
+  "shapes": [
+    {"type": "polygon", "points": [20, 40, 150, 40, 160, 160, 155, 280, 120, 345, 50, 345, 15, 280, 10, 160], "fill": "#C2185B"},
+    {"type": "polygon", "points": [15, 260, 155, 260, 145, 340, 55, 340, 20, 300], "fill": "#880E4F"},
+    {"type": "rect", "x": 35, "y": 50, "w": 100, "h": 100, "fill": "#E91E63"},
+    {"type": "polygon", "points": [65, 50, 85, 75, 105, 50], "fill": "#F8BBD0"},
+    {"type": "circle", "cx": 85, "cy": 78, "r": 3, "fill": "#F1C40F"},
+    {"type": "circle", "cx": 85, "cy": 38, "r": 36, "fill": "#FAD7A0"},
+    {"type": "polygon", "points": [50, 30, 48, 0, 65, -3, 85, -5, 105, -3, 122, 0, 120, 30, 118, 60, 115, 80, 105, 70, 100, 55, 95, 65, 85, 70, 75, 65, 70, 55, 65, 70, 55, 80, 52, 60, 50, 30], "fill": "#1A1A2E"},
+    {"type": "circle", "cx": 108, "cy": 20, "r": 5, "fill": "#E91E63"},
+    {"type": "circle", "cx": 108, "cy": 20, "r": 3, "fill": "#F8BBD0"},
+    {"type": "circle", "cx": 73, "cy": 35, "r": 5, "fill": "#17202A"},
+    {"type": "circle", "cx": 97, "cy": 35, "r": 5, "fill": "#17202A"},
+    {"type": "circle", "cx": 74.5, "cy": 32.5, "r": 2, "fill": "#ecf0f1"},
+    {"type": "circle", "cx": 98.5, "cy": 32.5, "r": 2, "fill": "#ecf0f1"},
+    {"type": "line", "points": [67, 29, 72, 30], "fill": "#17202A", "width": 1.5},
+    {"type": "line", "points": [100, 30, 103, 29], "fill": "#17202A", "width": 1.5},
+    {"type": "line", "points": [78, 50, 85, 54, 92, 50], "fill": "#C0392B", "smooth": true, "width": 2},
+    {"type": "text", "x": 85, "y": 388, "text": "艾达", "fill": "#ecf0f1", "font": ["微软雅黑", 14, "bold"]}
+  ]
+}

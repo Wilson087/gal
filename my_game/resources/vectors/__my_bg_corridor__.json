@@ -1,0 +1,20 @@
+{
+  "width": 320,
+  "height": 200,
+  "shapes": [
+    {"type": "rect", "x": 0, "y": 0, "w": 320, "h": 200, "fill": "#1C1411"},
+    {"type": "polygon", "points": [0, 0, 100, 40, 100, 140, 0, 200], "fill": "#2C1E16"},
+    {"type": "polygon", "points": [320, 0, 220, 40, 220, 140, 320, 200], "fill": "#2C1E16"},
+    {"type": "polygon", "points": [100, 140, 220, 140, 320, 200, 0, 200], "fill": "#1C1411"},
+    {"type": "line", "points": [100, 140, 0, 200], "fill": "#3D2A1E", "width": 1},
+    {"type": "line", "points": [220, 140, 320, 200], "fill": "#3D2A1E", "width": 1},
+    {"type": "line", "points": [150, 160, 170, 160], "fill": "#3D2A1E", "width": 1},
+    {"type": "line", "points": [120, 180, 200, 180], "fill": "#3D2A1E", "width": 1},
+    {"type": "rect", "x": 130, "y": 50, "w": 60, "h": 90, "fill": "#0D0D0D"},
+    {"type": "rect", "x": 135, "y": 55, "w": 50, "h": 80, "fill": "#F4D03F", "stipple": "gray12"},
+    {"type": "line", "points": [20, 60, 95, 80], "fill": "#5D4E37", "width": 2},
+    {"type": "line", "points": [300, 60, 225, 80], "fill": "#5D4E37", "width": 2},
+    {"type": "text", "x": 12, "y": 12, "text": "无限回廊", "fill": "#ecf0f1", "font": ["微软雅黑", 12], "anchor": "w"},
+    {"type": "line", "points": [12, 26, 100, 26], "fill": "#F1C40F", "width": 2}
+  ]
+}
