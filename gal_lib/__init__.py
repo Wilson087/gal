@@ -21,6 +21,7 @@
 """
 
 from .engine import VNGame
+from .ui import UIManager
 from .script import DEMO_SCRIPT
 from .scriptbuilder import NovelScript, Scene, ScriptBase, ScriptScene
 from .rich_text import parse_rich_text, strip_rich_tags, RichSegment
@@ -37,9 +38,9 @@ from .vectorgraphics import (
     register_from_base64,
 )
 
-__all__ = ["VNGame", "DEMO_SCRIPT", "NovelScript", "Scene",
+__all__ = ["VNGame", "UIManager", "DEMO_SCRIPT", "NovelScript", "Scene",
            "ScriptBase", "ScriptScene", "vectorgraphics",
            "load_all_vectors_from_package", "load_all_images_from_package",
            "register_png", "register_from_resource", "register_from_base64",
            "parse_rich_text", "strip_rich_tags", "RichSegment"]
-__version__ = "2.0.0"
+__version__ = "2.1.0"

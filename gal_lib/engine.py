@@ -28,7 +28,6 @@ import os
 import pickle
 import threading
 import tkinter as tk
-import tkinter.font as tkfont
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -37,12 +36,9 @@ from .script import load_from_file, validate_script
 from .renderer import (
     render_background,
     draw_character,
-    create_fade_overlay,
-    remove_overlay,
-    show_notification,
-    draw_rounded_rect,
 )
 from .audio import AudioEngine
+from .ui import UIManager
 from .rich_text import parse_rich_text, strip_rich_tags, RichSegment
 from .effects import (
     transition_crossfade,
@@ -162,13 +158,32 @@ class VNGame:
         # ── 屏幕滤镜 ──────────────────────────────────────────
         self._current_filter = FILTER_NONE
 
-        # ── UI 组件 ───────────────────────────────────────────
-        self.canvas: Optional[tk.Canvas] = None
-        self.dialogue_frame: Optional[tk.Frame] = None
-        self.speaker_label: Optional[tk.Label] = None
-        self.text_label: Optional[tk.Label] = None
-        self.next_indicator: Optional[tk.Label] = None
-        self.choice_frame: Optional[tk.Frame] = None
+        # ── UI 管理 ──────────────────────────────────────────
+        self.ui = UIManager(root)
+        self.ui.configure_root("视觉小说引擎")
+
+        # 设置 UI 回调
+        self.ui.set_callbacks(
+            on_advance=self._on_advance,
+            on_choice=self._on_choice_from_ui,
+            on_save=lambda: self._open_save_load("save"),
+            on_load=lambda: self._open_save_load("load"),
+            on_history=self.show_history,
+            on_main_menu=self._show_main_menu,
+            on_settings=self._open_settings,
+        )
+
+        # 构建主界面
+        self.ui.build_main_ui()
+
+        # UI 组件快捷引用（引擎内部大量使用，保持向后兼容）
+        self.canvas: Optional[tk.Canvas] = self.ui.canvas
+        self.dialogue_frame: Optional[tk.Frame] = self.ui.dialogue_frame
+        self.speaker_label: Optional[tk.Label] = self.ui.speaker_label
+        self.text_label: Optional[tk.Label] = self.ui.text_label
+        self.next_indicator: Optional[tk.Label] = self.ui.next_indicator
+        self.hint_label: Optional[tk.Label] = self.ui.hint_label
+        self.choice_frame: Optional[tk.Frame] = None  # 由 UIManager 管理
         self.choice_buttons: list[tk.Button] = []
         self.choice_overlay: Optional[int] = None
         self.main_menu_frame: Optional[tk.Frame] = None
@@ -184,8 +199,7 @@ class VNGame:
         self._unlocked_cgs: set[str] = set()
         self._scene_screenshots: dict[str, str] = OrderedDict()  # scene_id -> thumbnail path
 
-        # ── 构建并启动 ────────────────────────────────────────
-        self._build_ui()
+        # ── 事件绑定 ─────────────────────────────────────────
         self._bind_events()
 
     # ====================================================================
@@ -193,98 +207,11 @@ class VNGame:
     # ====================================================================
 
     def _build_ui(self) -> None:
-        """构建主界面：顶部工具栏 + Canvas 显示区 + 底部对话 Frame。"""
-        self.root.grid_rowconfigure(0, weight=0)
-        self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_rowconfigure(2, weight=0)
-        self.root.grid_columnconfigure(0, weight=1)
+        """构建游戏主界面。
 
-        # ── 顶部工具栏 ──────────────────────────────────────
-        self.toolbar = tk.Frame(
-            self.root, bg=COLOR_DIALOGUE_BG, height=30,
-            relief="raised", bd=1,
-        )
-        self.toolbar.grid(row=0, column=0, sticky="ew")
-        self.toolbar.grid_propagate(False)
-
-        _btn_style = dict(
-            font=("微软雅黑", 10), bg=COLOR_DIALOGUE_BG,
-            fg=COLOR_TEXT_PRIMARY, relief="flat", bd=0,
-            activebackground=COLOR_CHOICE_HOVER,
-            activeforeground=COLOR_TEXT_ACCENT,
-            padx=8, pady=2, cursor="hand2",
-        )
-
-        tk.Button(self.toolbar, text="存档", **_btn_style,
-                  command=lambda: self._open_save_load("save")).pack(side="left", padx=(6, 0))
-        tk.Button(self.toolbar, text="读档", **_btn_style,
-                  command=lambda: self._open_save_load("load")).pack(side="left", padx=0)
-        tk.Button(self.toolbar, text="历史", **_btn_style,
-                  command=self.show_history).pack(side="left", padx=0)
-        tk.Button(self.toolbar, text="主菜单", **_btn_style,
-                  command=self._show_main_menu).pack(side="left", padx=0)
-        tk.Button(self.toolbar, text="设置", **_btn_style,
-                  command=self._open_settings).pack(side="left", padx=0)
-
-        # ── Canvas 主区 ──────────────────────────────────────
-        container = tk.Frame(self.root, bg=COLOR_BG_DARK)
-        container.grid(row=1, column=0, sticky="nsew")
-        container.grid_rowconfigure(0, weight=1)
-        container.grid_columnconfigure(0, weight=1)
-
-        self.canvas = tk.Canvas(
-            container, bg=COLOR_BG_DARK,
-            highlightthickness=0, cursor="hand2",
-        )
-        self.canvas.grid(row=0, column=0, sticky="nsew")
-
-        # ── 对话 Frame ───────────────────────────────────────
-        self.dialogue_frame = tk.Frame(
-            self.root, bg=COLOR_DIALOGUE_BG,
-            relief="raised", bd=2,
-            height=DIALOGUE_FRAME_HEIGHT,
-        )
-        self.dialogue_frame.grid(row=2, column=0, sticky="ew")
-        self.dialogue_frame.grid_propagate(False)
-
-        self.dialogue_frame.grid_columnconfigure(0, weight=1)
-        self.dialogue_frame.grid_columnconfigure(1, weight=0)
-        self.dialogue_frame.grid_rowconfigure(0, weight=0)
-        self.dialogue_frame.grid_rowconfigure(1, weight=1)
-        self.dialogue_frame.grid_rowconfigure(2, weight=0)
-
-        self.speaker_label = tk.Label(
-            self.dialogue_frame, text="",
-            font=FONT_SPEAKER, fg=COLOR_TEXT_SPEAKER,
-            bg=COLOR_DIALOGUE_BG, anchor="w", padx=24,
-        )
-        self.speaker_label.grid(row=0, column=0, sticky="ew", pady=(12, 0))
-
-        self.text_label = tk.Label(
-            self.dialogue_frame, text="",
-            font=FONT_DIALOGUE, fg=COLOR_TEXT_PRIMARY,
-            bg=COLOR_DIALOGUE_BG, anchor="nw",
-            justify="left", wraplength=WINDOW_WIDTH - 80,
-            padx=24,
-        )
-        self.text_label.grid(row=1, column=0, sticky="nw", pady=(6, 12))
-
-        self.next_indicator = tk.Label(
-            self.dialogue_frame, text="",
-            font=("微软雅黑", 18), fg=COLOR_TEXT_SPEAKER,
-            bg=COLOR_DIALOGUE_BG,
-        )
-        self.next_indicator.grid(row=1, column=1, sticky="se",
-                                 padx=(0, 28), pady=(0, 18))
-
-        self.hint_label = tk.Label(
-            self.dialogue_frame,
-            text="点击推进 · A自动 · Ctrl快进 · S存档 · L读档 · Esc设置",
-            font=("微软雅黑", 9), fg="#7f8c8d",
-            bg=COLOR_DIALOGUE_BG, anchor="e", padx=24,
-        )
-        self.hint_label.grid(row=2, column=0, columnspan=2,
-                             sticky="ew", pady=(0, 4))
+        委托给 UIManager.build_main_ui()，已在 __init__ 中调用。
+        """
+        pass  # UI 构建已由 self.ui 在 __init__ 中完成
 
     # ====================================================================
     #  事件绑定
@@ -320,9 +247,8 @@ class VNGame:
         self.root.protocol("WM_DELETE_WINDOW", self._on_game_close)
 
     def _on_resize(self, event: tk.Event) -> None:
-        if self.text_label and event.widget is self.root:
-            new_wrap = max(event.width - 80, 200)
-            self.text_label.config(wraplength=new_wrap)
+        if event.widget is self.root:
+            self.ui.update_text_wraplength(event.width)
 
     def _on_game_close(self) -> None:
         self.audio.shutdown()
@@ -363,16 +289,7 @@ class VNGame:
             self._show_error_and_exit(str(e))
 
     def _show_error_and_exit(self, message: str) -> None:
-        win = tk.Toplevel(self.root)
-        win.title("错误")
-        win.geometry("440x160")
-        win.transient(self.root)
-        win.grab_set()
-        tk.Label(win, text=message, font=FONT_UI,
-                 wraplength=400, padx=20, pady=20).pack(expand=True)
-        tk.Button(win, text="确定", font=FONT_UI,
-                  command=lambda: (win.destroy(), self.root.destroy())
-                  ).pack(pady=10)
+        self.ui.show_error_dialog(message, on_close=self.root.destroy)
 
     # ====================================================================
     #  变量系统
@@ -460,85 +377,29 @@ class VNGame:
         self._title_showing = True
         self._cleanup_main_menu()
         self._clear_all()
-        self.dialogue_frame.grid_remove()
-
-        w = self.canvas.winfo_width() or WINDOW_WIDTH
-        h = self.canvas.winfo_height() or WINDOW_HEIGHT
-
-        # 渐变背景
-        for i in range(20):
-            frac = i / 20
-            r, g, b = int(10 + frac * 15), int(10 + frac * 10), int(26 + frac * 20)
-            color = f"#{r:02x}{g:02x}{b:02x}"
-            self.canvas.create_rectangle(
-                0, int(h * frac), w, int(h * (frac + 0.05)),
-                fill=color, outline="", tags="main_menu_bg")
+        self.ui.set_dialogue_frame_visible(False)
 
         title = (self.script.get("title", "") if self.script else "") or "视觉小说引擎"
-        spaced_title = "  ".join(title)
-
-        self.canvas.create_text(w // 2, int(h * 0.22),
-                                text=spaced_title, font=FONT_TITLE,
-                                fill=COLOR_TEXT_ACCENT, anchor="center",
-                                tags="main_menu_bg")
-        self.canvas.create_text(w // 2, int(h * 0.32),
-                                text=f"— {title} —",
-                                font=("微软雅黑", 16), fill=COLOR_TEXT_PRIMARY,
-                                anchor="center", tags="main_menu_bg")
-
-        # 主菜单按钮容器
-        self.main_menu_frame = tk.Frame(self.canvas, bg="", bd=0)
-        btn_style = dict(
-            font=("微软雅黑", 14),
-            fg=COLOR_TEXT_PRIMARY, bg="#1e1e3f",
-            activeforeground=COLOR_TEXT_ACCENT,
-            activebackground="#2d2d5e",
-            relief="solid", bd=1,
-            padx=60, pady=10, cursor="hand2",
-            highlightbackground=COLOR_CHOICE_BORDER,
-            highlightthickness=1,
-        )
+        ver = self.script.get("version", "") if self.script else ""
 
         has_saves = self._has_any_save()
-
-        buttons_data = [
-            ("新游戏", self._on_new_game),
-        ]
+        buttons = [("新游戏", self._on_new_game)]
         if has_saves:
-            buttons_data.append(("继续游戏", self._on_continue))
-
-        buttons_data.extend([
+            buttons.append(("继续游戏", self._on_continue))
+        buttons.extend([
             ("CG 画廊", self._open_gallery),
             ("设置", self._open_settings),
             ("退出", self._on_menu_quit),
         ])
 
-        for text, cmd in buttons_data:
-            btn = tk.Button(self.main_menu_frame, text=text,
-                            command=cmd, **btn_style)
-            btn.pack(fill="x", pady=6)
-
-        self.canvas.create_window(w // 2, int(h * 0.58),
-                                  window=self.main_menu_frame,
-                                  anchor="center",
-                                  tags="main_menu_frame")
-
-        # 底部版本信息
-        ver = self.script.get("version", "") if self.script else ""
-        if ver:
-            self.canvas.create_text(w // 2, h - 30,
-                                    text=f"v{ver}",
-                                    font=("微软雅黑", 10),
-                                    fill="#5a5a7a",
-                                    anchor="center",
-                                    tags="main_menu_bg")
+        self.ui.show_main_menu(title, version=ver, buttons=buttons)
 
     def _on_new_game(self) -> None:
         """新游戏：重置变量、清除存档状态，从 start 场景开始。"""
         self._in_main_menu = False
         self._title_showing = False
         self._cleanup_main_menu()
-        self.dialogue_frame.grid()
+        self.ui.set_dialogue_frame_visible(True)
         self.variables = {}
         self._seen_dialogues = set()
         self.history = []
@@ -557,12 +418,7 @@ class VNGame:
 
     def _cleanup_main_menu(self) -> None:
         """清理主菜单 UI。"""
-        self.canvas.delete("main_menu_bg")
-        # 先销毁 Frame，再删除 Canvas 窗口项
-        if self.main_menu_frame:
-            self.main_menu_frame.destroy()
-            self.main_menu_frame = None
-        self.canvas.delete("main_menu_frame")
+        self.ui.cleanup_main_menu()
 
     def _has_any_save(self) -> bool:
         """检查是否存在存档文件。"""
@@ -576,13 +432,8 @@ class VNGame:
     def _blink_title(self) -> None:
         if not self._title_showing or self._start_label is None:
             return
-        current = self.canvas.itemcget(self._start_label, "fill")
-        new = COLOR_TEXT_ACCENT if current == COLOR_TEXT_SPEAKER else COLOR_TEXT_SPEAKER
-        try:
-            self.canvas.itemconfig(self._start_label, fill=new)
-        except tk.TclError:
-            return
-        self.root.after(600, self._blink_title)
+        self.ui.blink_text_item(
+            self._start_label, COLOR_TEXT_SPEAKER, COLOR_TEXT_ACCENT, 600)
 
     # ====================================================================
     #  场景管理
@@ -1250,7 +1101,7 @@ class VNGame:
     def _start_auto_mode(self) -> None:
         """启动自动模式。"""
         self._auto_mode = True
-        show_notification(self.canvas, "自动模式 ON", color="#2ecc71", duration=1000)
+        self.ui.show_notification("自动模式 ON", color="#2ecc71", duration=1000)
         if not self._typing and not self._choosing and not self._title_showing:
             self._schedule_auto_next()
 
@@ -1263,7 +1114,7 @@ class VNGame:
             except ValueError:
                 pass
             self._auto_timer = None
-        show_notification(self.canvas, "自动模式 OFF", color="#e74c3c", duration=1000)
+        self.ui.show_notification("自动模式 OFF", color="#e74c3c", duration=1000)
 
     def _schedule_auto_next(self) -> None:
         """安排自动模式的下一次推进。"""
@@ -1304,65 +1155,14 @@ class VNGame:
         """在画面中央显示选项按钮。
 
         支持条件选项: choice 中可含 "if" 字段。
+        委托给 UIManager 渲染 UI。
 
         Args:
             choices: [{"text": "...", "next_scene": "...", "if": "..."}, ...]。
         """
         self._choosing = True
-        self._cleanup_choice_frame()
-        self.next_indicator.config(text="")
-
-        w = self.canvas.winfo_width() or WINDOW_WIDTH
-        h = self.canvas.winfo_height() or WINDOW_HEIGHT
-
-        self.choice_overlay = self.canvas.create_rectangle(
-            0, 0, w, h, fill="#000000", stipple="gray50",
-            outline="", tags="choice_ui")
-
-        self.choice_frame = tk.Frame(
-            self.canvas, bg=COLOR_CHOICE_BG, relief="solid", bd=2,
-            highlightbackground=COLOR_CHOICE_BORDER, highlightthickness=2)
-
-        tk.Label(self.choice_frame, text="— 做出你的选择 —",
-                 font=("微软雅黑", 14, "bold"),
-                 fg=COLOR_TEXT_ACCENT, bg=COLOR_CHOICE_BG,
-                 pady=12).pack(fill="x")
-
-        self.choice_buttons = []
-        for choice in choices:
-            text = choice.get("text", "继续")
-            next_scene = choice.get("next_scene", "")
-
-            # 处理变量效果
-            def make_handler(ns, effects=None):
-                def handler():
-                    if effects:
-                        for k, v in effects.items():
-                            self.set_var(k, v)
-                    self._on_choice_selected(ns)
-                return handler
-
-            effects = choice.get("set_var")
-            handler = make_handler(next_scene, effects)
-
-            btn = tk.Button(
-                self.choice_frame, text=text,
-                font=FONT_BUTTON, fg=COLOR_CHOICE_TEXT, bg=COLOR_CHOICE_BG,
-                activeforeground=COLOR_TEXT_ACCENT,
-                activebackground=COLOR_CHOICE_HOVER,
-                relief="solid", bd=1,
-                highlightbackground=COLOR_CHOICE_BORDER, highlightthickness=1,
-                padx=40, pady=10, cursor="hand2",
-                command=handler)
-            btn.pack(fill="x", padx=20, pady=6)
-            self.choice_buttons.append(btn)
-
-        self.choice_frame.update_idletasks()
-        fw = min(self.choice_frame.winfo_reqwidth() + 40, 500)
-        self.canvas.create_window(
-            w // 2, int(h * 0.45),
-            window=self.choice_frame, anchor="center",
-            width=fw, tags="choice_ui")
+        self.ui.show_next_indicator(False)
+        self.ui.show_choices(choices)
 
     def _on_choice_selected(self, next_scene: str) -> None:
         """选项被选中 -> 跳转场景。"""
@@ -1370,13 +1170,23 @@ class VNGame:
         self._choosing = False
         self._enter_scene(next_scene)
 
+    def _on_choice_from_ui(self, choice_dict: dict) -> None:
+        """UIManager 选项回调：处理 set_var 后跳转。
+
+        Args:
+            choice_dict: 完整的选项字典。
+        """
+        # 处理变量效果
+        effects = choice_dict.get("set_var")
+        if effects:
+            for k, v in effects.items():
+                self.set_var(k, v)
+        next_scene = choice_dict.get("next_scene", "")
+        self._on_choice_selected(next_scene)
+
     def _cleanup_choice_frame(self) -> None:
         """清理选项 UI。"""
-        self.canvas.delete("choice_ui")
-        if self.choice_frame:
-            self.choice_frame.destroy()
-            self.choice_frame = None
-        self.choice_buttons = []
+        self.ui.cleanup_choices()
 
     # ====================================================================
     #  存档 / 读档（增强版）
@@ -1389,7 +1199,7 @@ class VNGame:
             slot: 存档槽编号（0-99）或 "auto"/"quick"。
         """
         if self._title_showing or self._in_main_menu:
-            show_notification(self.canvas, "标题画面无法存档", color="#e74c3c")
+            self.ui.show_notification("标题画面无法存档", color="#e74c3c")
             return
         if self.current_scene_id is None:
             return
@@ -1427,9 +1237,9 @@ class VNGame:
         try:
             with open(path, "wb") as f:
                 pickle.dump(data, f)
-            show_notification(self.canvas, "存档成功 ✓", color=COLOR_BUTTON_SAVE, duration=1000)
+            self.ui.show_notification("存档成功 ✓", color=COLOR_BUTTON_SAVE, duration=1000)
         except (OSError, pickle.PicklingError) as e:
-            show_notification(self.canvas, f"存档失败: {e}", color="#e74c3c")
+            self.ui.show_notification(f"存档失败: {e}", color="#e74c3c")
 
     def load_game(self, slot: int = 0) -> None:
         """从指定存档槽恢复进度。
@@ -1439,7 +1249,7 @@ class VNGame:
         """
         path = SAVE_DIR / SAVE_FILE_TEMPLATE.format(slot)
         if not path.exists():
-            show_notification(self.canvas, "未找到存档文件", color="#e74c3c")
+            self.ui.show_notification("未找到存档文件", color="#e74c3c")
             return
 
         try:
@@ -1448,7 +1258,7 @@ class VNGame:
 
             scene_id = data.get("scene_id", "")
             if scene_id not in self.scenes_dict:
-                show_notification(self.canvas, "存档无效：场景不存在", color="#e74c3c")
+                self.ui.show_notification("存档无效：场景不存在", color="#e74c3c")
                 return
 
             self._cancel_typewriter()
@@ -1456,7 +1266,7 @@ class VNGame:
             self._cleanup_main_menu()
             self._title_showing = False
             self._in_main_menu = False
-            self.dialogue_frame.grid()
+            self.ui.set_dialogue_frame_visible(True)
 
             self.current_scene_id = scene_id
             self.dialogue_index = data.get("dialogue_index", 0)
@@ -1494,10 +1304,10 @@ class VNGame:
 
             self._transition_background(
                 scene.get("background", ""), on_complete=_after)
-            show_notification(self.canvas, "读档成功 ✓", color=COLOR_BUTTON_LOAD, duration=1000)
+            self.ui.show_notification("读档成功 ✓", color=COLOR_BUTTON_LOAD, duration=1000)
 
         except (OSError, pickle.UnpicklingError, KeyError) as e:
-            show_notification(self.canvas, f"读档失败: {e}", color="#e74c3c")
+            self.ui.show_notification(f"读档失败: {e}", color="#e74c3c")
 
     def quick_save(self) -> None:
         """快速存档（F5）。"""
@@ -1508,273 +1318,49 @@ class VNGame:
         self.load_game(QUICK_SAVE_SLOT)
 
     def _open_save_load(self, mode: str) -> None:
-        """打开存档/读档界面。
+        """打开存档/读档界面（委托给 UIManager）。
 
         Args:
             mode: "save" 或 "load"。
         """
         if self._title_showing and mode == "save":
-            show_notification(self.canvas, "标题画面无法存档", color="#e74c3c")
+            self.ui.show_notification("标题画面无法存档", color="#e74c3c")
             return
 
-        win = tk.Toplevel(self.root)
-        win.title("存档" if mode == "save" else "读档")
-        win.geometry("700x520")
-        win.transient(self.root)
-        win.grab_set()
-        win.configure(bg=COLOR_BG_DARK)
-
-        tk.Label(win, text=f"— {'存档' if mode == 'save' else '读档'} —",
-                 font=("微软雅黑", 18, "bold"),
-                 fg=COLOR_TEXT_ACCENT, bg=COLOR_BG_DARK,
-                 pady=15).pack(fill="x")
-
-        # 快捷槽位 (自动 + 快速)
-        quick_frame = tk.Frame(win, bg=COLOR_BG_DARK)
-        quick_frame.pack(fill="x", padx=20, pady=(0, 10))
-
-        for label, slot_key in [("快速存档/读档", QUICK_SAVE_SLOT)]:
-            f = self._make_slot_button(quick_frame, slot_key, mode)
-            f.pack(side="left", padx=5)
-
-        # 分页显示
-        page_var = tk.IntVar(value=0)
-        slots_frame = tk.Frame(win, bg=COLOR_BG_DARK)
-        slots_frame.pack(fill="both", expand=True, padx=20)
-
-        def refresh_page():
-            for w in slots_frame.winfo_children():
-                w.destroy()
-            page = page_var.get()
-            start = page * SAVE_SLOTS_PER_PAGE
-            end = min(start + SAVE_SLOTS_PER_PAGE, MAX_SAVE_SLOTS)
-
-            # 网格 3x4
-            cols = 3
-            row_frame = None
-            for i, slot in enumerate(range(start, end)):
-                if i % cols == 0:
-                    row_frame = tk.Frame(slots_frame, bg=COLOR_BG_DARK)
-                    row_frame.pack(fill="x", pady=3)
-                slot_frame = self._make_slot_button(row_frame, slot, mode)
-                slot_frame.pack(side="left", padx=5, expand=True, fill="x")
-
-        # 翻页按钮
-        nav_frame = tk.Frame(win, bg=COLOR_BG_DARK)
-        nav_frame.pack(fill="x", padx=20, pady=10)
-
-        max_page = (MAX_SAVE_SLOTS + SAVE_SLOTS_PER_PAGE - 1) // SAVE_SLOTS_PER_PAGE
-
-        def prev_page():
-            if page_var.get() > 0:
-                page_var.set(page_var.get() - 1)
-                refresh_page()
-
-        def next_page():
-            if page_var.get() < max_page - 1:
-                page_var.set(page_var.get() + 1)
-                refresh_page()
-
-        tk.Button(nav_frame, text="◀ 上一页", font=FONT_UI,
-                  bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
-                  activebackground=COLOR_CHOICE_HOVER,
-                  relief="solid", bd=1, padx=10, cursor="hand2",
-                  command=prev_page).pack(side="left", padx=5)
-        tk.Label(nav_frame, textvariable=page_var,
-                 font=FONT_UI, fg=COLOR_TEXT_PRIMARY,
-                 bg=COLOR_BG_DARK, padx=20).pack(side="left")
-        tk.Button(nav_frame, text="下一页 ▶", font=FONT_UI,
-                  bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
-                  activebackground=COLOR_CHOICE_HOVER,
-                  relief="solid", bd=1, padx=10, cursor="hand2",
-                  command=next_page).pack(side="left", padx=5)
-
-        refresh_page()
-
-        tk.Button(win, text="关闭", font=FONT_UI,
-                  command=win.destroy,
-                  bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
-                  relief="solid", bd=1, padx=20, pady=4,
-                  ).pack(pady=(0, 10))
-
-    def _make_slot_button(self, parent, slot, mode) -> tk.Frame:
-        """创建一个存档槽位按钮框架。
-
-        Args:
-            parent: 父容器。
-            slot: 槽位 ID。
-            mode: "save" 或 "load"。
-
-        Returns:
-            槽位 Frame。
-        """
-        frame = tk.Frame(parent, bg=COLOR_CHOICE_BG, relief="solid",
-                         bd=1, padx=8, pady=6, cursor="hand2")
-        frame.configure(width=190, height=100)
-        frame.pack_propagate(False)
-
-        # 读取存档信息
-        path = SAVE_DIR / SAVE_FILE_TEMPLATE.format(slot)
-        slot_label = str(slot).zfill(2) if isinstance(slot, int) else slot
-        title = f"[{slot_label}]"
-
-        if path.exists():
+        def _get_slot_info(slot):
+            """读取指定槽位的存档信息。"""
+            path = SAVE_DIR / SAVE_FILE_TEMPLATE.format(slot)
+            if not path.exists():
+                return None
             try:
                 with open(path, "rb") as f:
-                    data = pickle.load(f)
-                title = f"[{slot_label}] {data.get('date', '')}"
-                summary = data.get('summary', '') or data.get('scene_title', '')
-                status = "✓ 有存档"
+                    return pickle.load(f)
             except Exception:
-                summary = ""
-                status = "损坏"
-        else:
-            summary = ""
-            status = "空"
+                return None
 
-        tk.Label(frame, text=title,
-                 font=("微软雅黑", 9, "bold"),
-                 fg=COLOR_TEXT_ACCENT, bg=COLOR_CHOICE_BG,
-                 anchor="w").pack(fill="x")
-        tk.Label(frame, text=summary[:40],
-                 font=("微软雅黑", 8),
-                 fg=COLOR_TEXT_PRIMARY, bg=COLOR_CHOICE_BG,
-                 anchor="w", wraplength=170, justify="left").pack(fill="x", pady=(2, 0))
-        tk.Label(frame, text=status,
-                 font=("微软雅黑", 8),
-                 fg=COLOR_TEXT_SPEAKER if "空" in status else "#7f8c8d",
-                 bg=COLOR_CHOICE_BG, anchor="w").pack(fill="x")
-
-        def on_click(win_ref=None):
-            if mode == "save":
-                self.save_game(slot)
-                # 刷新显示
-                for w in frame.winfo_children():
-                    if isinstance(w, tk.Label) and w.cget("fg") == COLOR_TEXT_SPEAKER:
-                        w.config(fg="#7f8c8d")
-            else:
-                # 查找顶层 Toplevel 窗口并关闭
-                p = frame.master
-                while p and not isinstance(p, tk.Toplevel):
-                    p = p.master
-                if p:
-                    p.destroy()
-                self.load_game(slot)
-
-        for child in frame.winfo_children():
-            child.bind("<Button-1>", lambda e: on_click())
-        frame.bind("<Button-1>", lambda e: on_click())
-
-        return frame
+        self.ui.open_save_load(
+            mode,
+            on_save=self.save_game,
+            on_load=self.load_game,
+            get_slot_info=_get_slot_info,
+        )
 
     # ====================================================================
     #  文本历史（增强版）
     # ====================================================================
 
     def show_history(self) -> None:
-        """弹窗显示完整对白历史（支持点击重播语音）。"""
-        win = tk.Toplevel(self.root)
-        win.title("文本历史")
-        win.geometry("640x500")
-        win.transient(self.root)
-        win.configure(bg=COLOR_BG_DARK)
-
-        tk.Label(win, text="— 对白历史 —",
-                 font=("微软雅黑", 16, "bold"),
-                 fg=COLOR_TEXT_ACCENT, bg=COLOR_BG_DARK,
-                 pady=12).pack(fill="x")
-
-        outer = tk.Frame(win, bg=COLOR_BG_DARK)
-        outer.pack(fill="both", expand=True, padx=16, pady=(0, 16))
-
-        cv = tk.Canvas(outer, bg=COLOR_BG_DARK, highlightthickness=0)
-        sb = tk.Scrollbar(outer, orient="vertical", command=cv.yview)
-        inner = tk.Frame(cv, bg=COLOR_BG_DARK)
-
-        inner.bind("<Configure>",
-                   lambda e: cv.configure(scrollregion=cv.bbox("all")))
-        cv.create_window((0, 0), window=inner, anchor="nw")
-        cv.configure(yscrollcommand=sb.set)
-
-        def _on_wheel(event):
-            cv.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        def _on_wheel_up(event):
-            cv.yview_scroll(-3, "units")
-
-        def _on_wheel_down(event):
-            cv.yview_scroll(3, "units")
-
-        for w in (cv, inner):
-            w.bind("<MouseWheel>", _on_wheel)
-            w.bind("<Button-4>", _on_wheel_up)
-            w.bind("<Button-5>", _on_wheel_down)
-
-        if not self.history:
-            tk.Label(inner, text="暂无对白记录", font=FONT_UI,
-                     fg=COLOR_TEXT_PRIMARY, bg=COLOR_BG_DARK,
-                     pady=20).pack()
-        else:
-            for entry in self.history:
-                speaker = entry.get("speaker", "")
-                text = entry.get("text", "")
-                voice_path = entry.get("voice")
-
-                row = tk.Frame(inner, bg=COLOR_DIALOGUE_BG,
-                               relief="solid", bd=1)
-                row.pack(fill="x", pady=4, padx=4)
-
-                header = tk.Frame(row, bg=COLOR_DIALOGUE_BG)
-                header.pack(fill="x", padx=12, pady=(8, 2))
-
-                l1 = tk.Label(header, text=speaker or "（旁白）",
-                              font=("微软雅黑", 12, "bold"),
-                              fg=COLOR_TEXT_SPEAKER if speaker else DEFAULT_NARRATOR_COLOR,
-                              bg=COLOR_DIALOGUE_BG, anchor="w")
-                l1.pack(side="left")
-
-                # 如果有语音，显示重播按钮
-                if voice_path:
-                    replay_btn = tk.Button(
-                        header, text="🔊 重播", font=("微软雅黑", 9),
-                        bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
-                        relief="flat", bd=0, cursor="hand2",
-                        activebackground=COLOR_CHOICE_HOVER,
-                        command=lambda v=voice_path: self.audio.play_voice(v))
-                    replay_btn.pack(side="right", padx=(10, 0))
-
-                l2 = tk.Label(row, text=text,
-                              font=("微软雅黑", 11),
-                              fg=COLOR_TEXT_PRIMARY, bg=COLOR_DIALOGUE_BG,
-                              anchor="w", wraplength=540,
-                              justify="left", padx=12)
-                l2.pack(fill="x", pady=(0, 8))
-
-                for child in (row, header, l1, l2):
-                    child.bind("<MouseWheel>", _on_wheel)
-                    child.bind("<Button-4>", _on_wheel_up)
-                    child.bind("<Button-5>", _on_wheel_down)
-
-        cv.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-
-        # 导出按钮
-        btn_frame = tk.Frame(win, bg=COLOR_BG_DARK)
-        btn_frame.pack(fill="x", padx=20, pady=(0, 12))
-
-        tk.Button(btn_frame, text="导出历史", font=FONT_UI,
-                  bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
-                  relief="solid", bd=1, padx=15, cursor="hand2",
-                  command=lambda: self._export_history(win)).pack(side="left")
-        tk.Button(btn_frame, text="关闭", font=FONT_UI,
-                  command=win.destroy,
-                  bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
-                  relief="solid", bd=1, padx=20).pack(side="right")
+        """弹窗显示完整对白历史（委托给 UIManager）。"""
+        self.ui.show_history(
+            entries=self.history,
+            on_replay_voice=self.audio.play_voice,
+            on_export=self._export_history,
+        )
 
     def _export_history(self, parent=None) -> None:
         """将历史对白导出为 txt 文件。"""
         if not self.history:
-            show_notification(self.canvas, "无历史可导出", color="#e74c3c")
+            self.ui.show_notification("无历史可导出", color="#e74c3c")
             return
 
         try:
@@ -1803,276 +1389,62 @@ class VNGame:
                 f.write("=" * 50 + "\n")
                 f.write("— 完 —\n")
 
-            show_notification(self.canvas, f"导出成功: {Path(path).name}",
+            self.ui.show_notification(f"导出成功: {Path(path).name}",
                               color="#2ecc71")
         except Exception as e:
-            show_notification(self.canvas, f"导出失败: {e}", color="#e74c3c")
+            self.ui.show_notification(f"导出失败: {e}", color="#e74c3c")
 
     # ====================================================================
     #  CG 画廊
     # ====================================================================
 
     def _open_gallery(self) -> None:
-        """打开 CG 画廊窗口。"""
-        win = tk.Toplevel(self.root)
-        win.title("CG 画廊")
-        win.geometry("700x520")
-        win.transient(self.root)
-        win.grab_set()
-        win.configure(bg=COLOR_BG_DARK)
-
-        tk.Label(win, text="— CG 画廊 —",
-                 font=("微软雅黑", 18, "bold"),
-                 fg=COLOR_TEXT_ACCENT, bg=COLOR_BG_DARK,
-                 pady=15).pack(fill="x")
-
-        # 获取所有背景场景
+        """打开 CG 画廊窗口（委托给 UIManager）。"""
         all_bgs = []
         if self.script:
+            seen = set()
             for scene in self.script.get("scenes", []):
                 bg_id = scene.get("background", "")
-                if bg_id and bg_id not in [b[0] for b in all_bgs]:
+                if bg_id and bg_id not in seen:
+                    seen.add(bg_id)
                     label = bg_id.replace("__", "").replace("_", " ")
                     all_bgs.append((bg_id, label))
-
-        if not all_bgs:
-            tk.Label(win, text="暂无可用 CG", font=FONT_UI,
-                     fg=COLOR_TEXT_PRIMARY, bg=COLOR_BG_DARK,
-                     pady=40).pack()
-        else:
-            # 网格显示
-            cg_frame = tk.Frame(win, bg=COLOR_BG_DARK)
-            cg_frame.pack(fill="both", expand=True, padx=20, pady=10)
-
-            cols = 3
-            for i, (bg_id, label) in enumerate(all_bgs):
-                unlocked = bg_id in self._unlocked_cgs
-                row = i // cols
-                col = i % cols
-
-                cell = tk.Frame(cg_frame, bg=COLOR_CHOICE_BG,
-                                relief="solid", bd=1, padx=5, pady=5,
-                                width=200, height=140)
-                cell.grid(row=row, column=col, padx=5, pady=5)
-                cell.grid_propagate(False)
-
-                if unlocked:
-                    # 显示缩略图占位
-                    color, _ = PLACEHOLDER_BG_COLORS.get(bg_id, ("#34495e", ""))
-                    tk.Label(cell, text=label,
-                             font=("微软雅黑", 10),
-                             fg=COLOR_TEXT_PRIMARY, bg=COLOR_CHOICE_BG,
-                             anchor="center").place(relx=0.5, rely=0.5,
-                                                     anchor="center")
-                else:
-                    tk.Label(cell, text="🔒 未解锁",
-                             font=("微软雅黑", 10),
-                             fg="#5a5a7a", bg=COLOR_CHOICE_BG,
-                             anchor="center").place(relx=0.5, rely=0.5,
-                                                     anchor="center")
-
-        tk.Button(win, text="关闭", font=FONT_UI,
-                  command=win.destroy,
-                  bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
-                  relief="solid", bd=1, padx=20, pady=4,
-                  ).pack(pady=(0, 10))
+        self.ui.open_gallery(all_bgs, self._unlocked_cgs)
 
     # ====================================================================
     #  设置面板（增强版）
     # ====================================================================
 
     def _open_settings(self) -> None:
-        """Esc 键弹出设置面板（增强版）。"""
-        win = tk.Toplevel(self.root)
-        win.title("设置")
-        win.geometry("560x660")
-        win.transient(self.root)
-        win.grab_set()
-        win.configure(bg=COLOR_BG_DARK)
-
-        # 滚动支持
-        outer = tk.Frame(win, bg=COLOR_BG_DARK)
-        outer.pack(fill="both", expand=True)
-
-        cv = tk.Canvas(outer, bg=COLOR_BG_DARK, highlightthickness=0)
-        sb = tk.Scrollbar(outer, orient="vertical", command=cv.yview)
-        inner = tk.Frame(cv, bg=COLOR_BG_DARK)
-
-        inner.bind("<Configure>",
-                   lambda e: cv.configure(scrollregion=cv.bbox("all")))
-        cv.create_window((0, 0), window=inner, anchor="nw")
-        cv.configure(yscrollcommand=sb.set)
-
-        def _mw(event):
-            cv.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        cv.bind("<MouseWheel>", _mw)
-        inner.bind("<MouseWheel>", _mw)
-
-        cv.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-
-        tk.Label(inner, text="— 设 置 —",
-                 font=("微软雅黑", 18, "bold"),
-                 fg=COLOR_TEXT_ACCENT, bg=COLOR_BG_DARK,
-                 pady=15).pack(fill="x")
-
-        # ── 文字速度 ──
-        self._make_settings_section(inner, "文字速度", [
-            ("slider", self.text_speed, 10, 200, 5,
-             lambda v: setattr(self, 'text_speed', int(v))),
-            ("presets", [("快速", 20), ("普通", 40), ("慢速", 80), ("很慢", 150)]),
-        ])
-
-        # ── BGM 音量 ──
-        self._make_settings_section(inner, "BGM 音量", [
-            ("slider", self.audio.volume_bgm, 0, 100, 5,
-             lambda v: self.audio.set_volume_bgm(int(v))),
-        ])
-
-        # ── SFX 音量 ──
-        self._make_settings_section(inner, "SFX 音量", [
-            ("slider", self.audio.volume_sfx, 0, 100, 5,
-             lambda v: self.audio.set_volume_sfx(int(v))),
-        ])
-
-        # ── 语音音量 ──
-        self._make_settings_section(inner, "语音音量", [
-            ("slider", self.audio.volume_voice, 0, 100, 5,
-             lambda v: self.audio.set_volume_voice(int(v))),
-        ])
-
-        # ── 全局静音 ──
-        mute_frame = tk.Frame(inner, bg=COLOR_BG_DARK)
-        mute_frame.pack(fill="x", padx=40, pady=10)
-        mute_state = tk.BooleanVar(value=self.audio.get_volume() == 0)
-        tk.Checkbutton(mute_frame, text="全局静音", variable=mute_state,
-                       font=("微软雅黑", 12), fg=COLOR_TEXT_PRIMARY,
-                       bg=COLOR_BG_DARK, selectcolor=COLOR_BG_DARK,
-                       activebackground=COLOR_BG_DARK,
-                       cursor="hand2",
-                       command=lambda: self.audio.set_volume(
-                           0 if mute_state.get() else 100)
-                       ).pack(anchor="w")
-
-        # ── 跳过模式 ──
-        skip_frame = tk.Frame(inner, bg=COLOR_BG_DARK)
-        skip_frame.pack(fill="x", padx=40, pady=10)
-        tk.Label(skip_frame, text="跳过模式",
-                 font=("微软雅黑", 12), fg=COLOR_TEXT_PRIMARY,
-                 bg=COLOR_BG_DARK, anchor="w").pack(fill="x")
-
-        skip_var = tk.StringVar(value=self.skip_mode)
-        skip_opts = tk.Frame(skip_frame, bg=COLOR_BG_DARK)
-        skip_opts.pack(anchor="w", pady=(4, 0))
-        for label, val in [("关闭", "off"), ("已读跳过", "read"), ("全部跳过", "all")]:
-            tk.Radiobutton(skip_opts, text=label, variable=skip_var,
-                           value=val, font=("微软雅黑", 11),
-                           fg=COLOR_TEXT_PRIMARY, bg=COLOR_BG_DARK,
-                           selectcolor=COLOR_BG_DARK,
-                           activebackground=COLOR_BG_DARK,
-                           cursor="hand2",
-                           command=lambda v=val: setattr(self, 'skip_mode', v)
-                           ).pack(side="left", padx=(0, 15))
-
-        # ── 全屏切换 ──
-        fs_frame = tk.Frame(inner, bg=COLOR_BG_DARK)
-        fs_frame.pack(fill="x", padx=40, pady=10)
-        fs_state = tk.BooleanVar(value=False)
-        tk.Checkbutton(fs_frame, text="全屏模式 (F11)", variable=fs_state,
-                       font=("微软雅黑", 12), fg=COLOR_TEXT_PRIMARY,
-                       bg=COLOR_BG_DARK, selectcolor=COLOR_BG_DARK,
-                       activebackground=COLOR_BG_DARK,
-                       cursor="hand2",
-                       command=lambda: self._toggle_fullscreen(fs_state)
-                       ).pack(anchor="w")
-
-        # ── 对话框位置 ──
-        pos_frame = tk.Frame(inner, bg=COLOR_BG_DARK)
-        pos_frame.pack(fill="x", padx=40, pady=10)
-        tk.Label(pos_frame, text="对话框位置",
-                 font=("微软雅黑", 12), fg=COLOR_TEXT_PRIMARY,
-                 bg=COLOR_BG_DARK, anchor="w").pack(fill="x")
-        pos_var = tk.StringVar(value=self.dialog_position)
-        pos_opts = tk.Frame(pos_frame, bg=COLOR_BG_DARK)
-        pos_opts.pack(anchor="w", pady=(4, 0))
-        for label, val in [("底部", "bottom"), ("顶部", "top"), ("全屏", "fullscreen")]:
-            tk.Radiobutton(pos_opts, text=label, variable=pos_var,
-                           value=val, font=("微软雅黑", 11),
-                           fg=COLOR_TEXT_PRIMARY, bg=COLOR_BG_DARK,
-                           selectcolor=COLOR_BG_DARK,
-                           activebackground=COLOR_BG_DARK,
-                           cursor="hand2",
-                           command=lambda v=val: self._set_dialog_position(v)
-                           ).pack(side="left", padx=(0, 15))
-
-        # ── 关闭 ──
-        tk.Button(inner, text="关闭", font=FONT_UI, command=win.destroy,
-                  bg=COLOR_CHOICE_BORDER, fg=COLOR_TEXT_PRIMARY,
-                  relief="solid", bd=1, padx=30, pady=6, cursor="hand2",
-                  ).pack(pady=20)
-
-    def _make_settings_section(self, parent, title, items) -> None:
-        """构建设置区域。
-
-        Args:
-            parent: 父容器。
-            title: 区域标题。
-            items: 配置项列表。
-        """
-        frame = tk.Frame(parent, bg=COLOR_BG_DARK)
-        frame.pack(fill="x", padx=40, pady=8)
-
-        tk.Label(frame, text=title,
-                 font=("微软雅黑", 14), fg=COLOR_TEXT_PRIMARY,
-                 bg=COLOR_BG_DARK, anchor="w").pack(fill="x")
-
-        for item in items:
-            if item[0] == "slider":
-                _, val, from_, to, res, cmd = item
-                scale = tk.Scale(frame, from_=from_, to=to,
-                                 orient="horizontal", length=380,
-                                 resolution=res, showvalue=True,
-                                 bg=COLOR_DIALOGUE_BG, fg=COLOR_TEXT_PRIMARY,
-                                 highlightbackground=COLOR_BG_DARK,
-                                 troughcolor="#2c3e50", cursor="hand2")
-                scale.set(val)
-                scale.config(command=cmd)
-                scale.pack(pady=(4, 0))
-            elif item[0] == "presets":
-                _, presets = item
-                pf = tk.Frame(frame, bg=COLOR_BG_DARK)
-                pf.pack(pady=(0, 4))
-                for label, val in presets:
-                    tk.Button(pf, text=label,
-                              font=("微软雅黑", 11),
-                              bg=COLOR_CHOICE_BG, fg=COLOR_TEXT_PRIMARY,
-                              activebackground=COLOR_CHOICE_HOVER,
-                              activeforeground=COLOR_TEXT_ACCENT,
-                              relief="solid", bd=1, padx=16, cursor="hand2",
-                              command=lambda v=val: self._set_text_speed(v),
-                              ).pack(side="left", padx=6)
-
-    def _set_text_speed(self, val: int) -> None:
-        self.text_speed = val
+        """打开设置面板（委托给 UIManager）。"""
+        self.ui.open_settings(
+            current_speed=self.text_speed,
+            volume_bgm=self.audio.volume_bgm,
+            volume_sfx=self.audio.volume_sfx,
+            volume_voice=self.audio.volume_voice,
+            global_muted=self.audio.get_volume() == 0,
+            skip_mode=self.skip_mode,
+            dialog_position=self.dialog_position,
+            on_speed_change=lambda v: setattr(self, 'text_speed', v),
+            on_bgm_volume=self.audio.set_volume_bgm,
+            on_sfx_volume=self.audio.set_volume_sfx,
+            on_voice_volume=self.audio.set_volume_voice,
+            on_global_mute=lambda m: self.audio.set_volume(0 if m else 100),
+            on_skip_mode=lambda v: setattr(self, 'skip_mode', v),
+            on_dialog_position=self._set_dialog_position,
+            on_fullscreen=lambda _: self.ui.toggle_fullscreen(),
+        )
 
     def _set_dialog_position(self, pos: str) -> None:
         """设置对话框位置。"""
         self.dialog_position = pos
-        if pos == "bottom":
-            self.dialogue_frame.grid(row=2, column=0, sticky="ew")
-        elif pos == "top":
-            self.dialogue_frame.grid(row=0, column=0, sticky="ew")
-        elif pos == "fullscreen":
-            self.dialogue_frame.grid(row=1, column=0, sticky="sew")
-            self.dialogue_frame.config(height=WINDOW_HEIGHT // 2)
+        self.ui.set_dialog_position(pos)
 
     def _toggle_fullscreen(self, var=None) -> None:
         """切换全屏模式。"""
-        is_full = self.root.attributes("-fullscreen")
-        self.root.attributes("-fullscreen", not is_full)
+        state = self.ui.toggle_fullscreen()
         if var:
-            var.set(not is_full)
+            var.set(state)
 
     # ====================================================================
     #  工具方法
@@ -2080,9 +1452,8 @@ class VNGame:
 
     def _clear_all(self) -> None:
         """重置 Canvas、取消打字机、清理选项、停止音乐。"""
-        self.canvas.delete("all")
+        self.ui.clear_all()
         self._cancel_typewriter()
-        self._cleanup_choice_frame()
         self._stop_speaking_animation()
         self.char_left_items = []
         self.char_right_items = []
