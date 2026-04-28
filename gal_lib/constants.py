@@ -131,6 +131,7 @@ SFX_ENABLED       = True
 VOICE_ENABLED     = True
 CROSSFADE_DURATION = 1500    # BGM 交叉淡入淡出时长（ms）
 CROSSFADE_STEPS    = 15      # 淡入淡出步数
+BGM_DUCK_RATIO     = 50      # BGM 闪避: 播放语音时 BGM 音量降至原音量的百分比
 
 # ── 自动模式 ─────────────────────────────────────────────────
 AUTO_DEFAULT_DELAY = 1500    # 自动模式默认等待时间（ms）

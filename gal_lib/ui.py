@@ -581,6 +581,7 @@ class UIManager:
         volume_sfx: int = DEFAULT_VOLUME_SFX,
         volume_voice: int = DEFAULT_VOLUME_VOICE,
         global_muted: bool = False,
+        bgm_ducking: bool = True,
         skip_mode: str = "read",
         dialog_position: str = DEFAULT_DIALOG_POSITION,
         on_speed_change: Optional[Callable[[int], None]] = None,
@@ -588,6 +589,7 @@ class UIManager:
         on_sfx_volume: Optional[Callable[[int], None]] = None,
         on_voice_volume: Optional[Callable[[int], None]] = None,
         on_global_mute: Optional[Callable[[bool], None]] = None,
+        on_bgm_ducking: Optional[Callable[[bool], None]] = None,
         on_skip_mode: Optional[Callable[[str], None]] = None,
         on_dialog_position: Optional[Callable[[str], None]] = None,
         on_fullscreen: Optional[Callable[[bool], None]] = None,
@@ -679,6 +681,19 @@ class UIManager:
             activebackground=COLOR_BG_DARK,
             cursor="hand2",
             command=lambda: on_global_mute(mute_state.get()) if on_global_mute else None,
+        ).pack(anchor="w")
+
+        # ── BGM 闪避 ──
+        duck_frame = tk.Frame(inner, bg=COLOR_BG_DARK)
+        duck_frame.pack(fill="x", padx=40, pady=5)
+        duck_state = tk.BooleanVar(value=bgm_ducking)
+        tk.Checkbutton(
+            duck_frame, text="语音时自动降低 BGM 音量", variable=duck_state,
+            font=("微软雅黑", 12), fg=COLOR_TEXT_PRIMARY,
+            bg=COLOR_BG_DARK, selectcolor=COLOR_BG_DARK,
+            activebackground=COLOR_BG_DARK,
+            cursor="hand2",
+            command=lambda: on_bgm_ducking(duck_state.get()) if on_bgm_ducking else None,
         ).pack(anchor="w")
 
         # ── 跳过模式 ──
