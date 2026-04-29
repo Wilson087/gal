@@ -14,6 +14,7 @@ from dataclasses import dataclass
 WINDOW_WIDTH: int = 1280
 WINDOW_HEIGHT: int = 720
 RESOURCE_ROOT: str = "resources"
+DATA_ROOT: str = RESOURCE_ROOT
 SAVE_PATH: str = "saves"
 LOG_PATH: str = "logs"
 DEFAULT_TITLE: str = "Visual Novel Engine V2.5"
