@@ -4,8 +4,11 @@
 网格展示存档槽位，支持翻页、截图预览、存档/读档操作。
 """
 
+import base64
+import io
 from typing import Any, Optional, TYPE_CHECKING
 
+import pyglet
 from pyglet.graphics import Group, Batch
 from pyglet.shapes import RoundedRectangle, Rectangle
 from pyglet.text import Label
@@ -126,37 +129,75 @@ class SaveLoadPanel:
 
     def _draw_slot(self, x: int, y: int, slot_index: int,
                    info: Optional[dict]) -> None:
-        """绘制单个槽位。"""
+        """绘制单个槽位：上方截图区 + 下方信息区。"""
+        widgets: list[Any] = []
+        thumb_h = int(_SLOT_W * 9 / 16)  # 16:9 缩略图高度 ~76px
+        info_h = _SLOT_H - thumb_h       # 信息区 ~94px
+
+        # 槽位背景
         bg = RoundedRectangle(x, y, _SLOT_W, _SLOT_H, 6,
                               color=(255, 255, 255, 30),
                               batch=self._batch, group=self._group)
-        widgets: list[Any] = [bg]
+        widgets.append(bg)
 
         if info and info.get("screenshot_base64"):
-            # 有存档：显示时间+场景名
+            # 截图缩略图区域
+            try:
+                png_bytes = base64.b64decode(info["screenshot_base64"])
+                img = pyglet.image.load("", file=io.BytesIO(png_bytes))
+                thumb = pyglet.sprite.Sprite(
+                    img, x=x + 2, y=y + info_h,
+                    batch=self._batch, group=self._group)
+                # 缩放到槽位宽度
+                scale_w = (_SLOT_W - 4) / img.width
+                scale_h = (thumb_h - 4) / img.height
+                thumb.scale = min(scale_w, scale_h)
+                thumb.x = x + _SLOT_W // 2
+                thumb.y = y + info_h + thumb_h // 2
+                widgets.append(thumb)
+            except Exception:
+                pass  # 解码失败则跳过截图
+
+            # 时间戳
             ts = info.get("timestamp", "")
+            if ts:
+                widgets.append(
+                    Label(ts[-11:], font_name=FONT_FAMILIES, font_size=9,
+                          color=TEXT_DIM,
+                          x=x + 5, y=y + info_h - 16,
+                          anchor_x="left", anchor_y="top",
+                          batch=self._batch, group=self._group))
+            # 场景名
             scene = info.get("chapter_title", "")
+            if scene:
+                widgets.append(
+                    Label(scene[:12], font_name=FONT_FAMILIES, font_size=9,
+                          color=TEXT_ACCENT,
+                          x=x + 5, y=y + 6, anchor_x="left", anchor_y="bottom",
+                          batch=self._batch, group=self._group))
+            # 槽位号
             widgets.append(
-                Label(ts, font_name=FONT_FAMILIES, font_size=9,
-                      color=TEXT_DIM,
-                      x=x + 5, y=y + _SLOT_H - 22, anchor_x="left", anchor_y="top",
-                      batch=self._batch, group=self._group))
-            widgets.append(
-                Label(f"#{slot_index}", font_name=FONT_FAMILIES, font_size=10,
-                      color=TEXT_ACCENT,
-                      x=x + 5, y=y + 5, anchor_x="left", anchor_y="bottom",
-                      batch=self._batch, group=self._group))
-            widgets.append(
-                Label(scene[:12], font_name=FONT_FAMILIES, font_size=9,
-                      color=TEXT_ACCENT,
-                      x=x + 5, y=y + 20, anchor_x="left", anchor_y="bottom",
+                Label(f"#{slot_index:02d}", font_name=FONT_FAMILIES, font_size=10,
+                      color=TEXT_NORMAL,
+                      x=x + _SLOT_W - 5, y=y + 6,
+                      anchor_x="right", anchor_y="bottom",
                       batch=self._batch, group=self._group))
         else:
-            # 空槽位
+            # 空槽位：虚线边框提示
+            empty_border = Rectangle(x + 4, y + 4, _SLOT_W - 8, _SLOT_H - 8,
+                                     color=(255, 255, 255, 15),
+                                     batch=self._batch, group=self._group)
+            widgets.append(empty_border)
             widgets.append(
-                Label("空", font_name=FONT_FAMILIES, font_size=14,
+                Label(f"#{slot_index:02d}", font_name=FONT_FAMILIES, font_size=12,
                       color=TEXT_DIM,
-                      x=x + _SLOT_W // 2, y=y + _SLOT_H // 2,
+                      x=x + _SLOT_W // 2, y=y + _SLOT_H // 2 + 12,
+                      anchor_x="center", anchor_y="center",
+                      batch=self._batch, group=self._group))
+            widgets.append(
+                Label("空", font_name=FONT_FAMILIES, font_size=11,
+                      color=TEXT_DIM,
+                      x=x + _SLOT_W // 2, y=y + _SLOT_H // 2 - 10,
                       anchor_x="center", anchor_y="center",
                       batch=self._batch, group=self._group))
 

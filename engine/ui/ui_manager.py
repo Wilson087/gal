@@ -194,6 +194,10 @@ class Notification:
 class UIManager:
     """全局 UI 编排器：导航栏、面板管理、通知。"""
 
+    NAV_HIDE_DELAY = 3.0         # 无操作后自动隐藏秒数
+    NAV_FADE_DURATION = 0.15     # 淡入淡出过渡秒数
+    NAV_REVEAL_ZONE = 60         # 鼠标靠近底部多少px时显示
+
     def __init__(self, app: "AVGApplication") -> None:
         self.app = app
         self._ui_batch = app.ui_batch
@@ -208,7 +212,13 @@ class UIManager:
         # 常驻工具栏
         self._nav_buttons: list[dict] = []
         self._nav_bar_bg: Optional[Rectangle] = None
-        self._nav_bar_height = 46  # 更紧凑
+        self._nav_bar_height = 46
+
+        # 工具栏自动隐藏状态
+        self._nav_idle_timer: float = 0.0
+        self._nav_fade: float = 1.0        # 当前不透明度倍率 (0~1)
+        self._nav_target_fade: float = 1.0  # 目标不透明度
+        self._nav_auto_hide: bool = True
 
         # 面板
         self._overlay: Optional[Rectangle] = None
@@ -279,6 +289,17 @@ class UIManager:
             # 按钮文字改成黑色，提高在亮色背景上的可读性
             btn["label"].color = TEXT_BLACK
             self._nav_buttons.append(btn)
+
+    def _apply_nav_opacity(self) -> None:
+        """将当前 fade 值应用到所有导航栏元素。"""
+        alpha = int(self._nav_fade * 255)
+        if self._nav_bar_bg:
+            self._nav_bar_bg.opacity = alpha
+        for btn in self._nav_buttons:
+            btn["rect"].opacity = alpha
+            btn["label"].opacity = alpha
+            if btn.get("shortcut"):
+                btn["shortcut"].opacity = alpha
 
     def _update_nav_bar(self, dt: float) -> None:
         """更新工具栏：按钮悬停高亮。"""
@@ -404,6 +425,35 @@ class UIManager:
 
     def update(self, dt: float) -> None:
         """帧更新。"""
+        # 工具栏自动隐藏
+        if self._nav_auto_hide and not self._active_panel:
+            self._nav_idle_timer += dt
+            mx, my = 0, 0
+            try:
+                mx, my = self.app._mouse_x, self.app._mouse_y
+            except AttributeError:
+                pass
+            # 鼠标靠近底部时显示
+            in_zone = my <= self.NAV_REVEAL_ZONE
+            if in_zone or self._nav_idle_timer < self.NAV_HIDE_DELAY:
+                self._nav_target_fade = 1.0
+                if in_zone:
+                    self._nav_idle_timer = 0.0
+            else:
+                self._nav_target_fade = 0.0
+
+            # 平滑过渡
+            if abs(self._nav_fade - self._nav_target_fade) > 0.01:
+                delta = dt / self.NAV_FADE_DURATION
+                if self._nav_fade < self._nav_target_fade:
+                    self._nav_fade = min(self._nav_target_fade, self._nav_fade + delta)
+                else:
+                    self._nav_fade = max(self._nav_target_fade, self._nav_fade - delta)
+                self._apply_nav_opacity()
+        else:
+            self._nav_fade = 1.0
+            self._apply_nav_opacity()
+
         self._update_nav_bar(dt)
         self.notification.update(dt)
 
@@ -418,6 +468,7 @@ class UIManager:
     def on_mouse_press(self, x: int, y: int, button: int,
                        modifiers: int) -> bool:
         """处理 UI 鼠标点击。返回 True 表示已处理。"""
+        self._nav_idle_timer = 0.0  # 点击重置隐藏计时
         if button != mouse.LEFT:
             return False
 

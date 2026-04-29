@@ -18,12 +18,13 @@ from pyglet.text import Label
 
 from ..core.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, DIALOGUE_FRAME_HEIGHT,
-    DIALOGUE_PADDING, DIALOGUE_MARGIN_BOTTOM,
-    COLOR_DIALOGUE_BG, COLOR_TEXT_PRIMARY, COLOR_TEXT_SPEAKER,
+    DIALOGUE_PADDING, DIALOGUE_MARGIN_BOTTOM, DIALOGUE_RADIUS, DIALOGUE_MARGIN_H,
+    SPEAKER_PILL_HEIGHT, SPEAKER_PILL_OFFSET,
+    COLOR_DIALOGUE_BG, COLOR_TEXT_PRIMARY, COLOR_TEXT_SPEAKER, COLOR_TEXT_SHADOW,
     DEFAULT_SPEAKER_COLOR, DEFAULT_NARRATOR_COLOR,
     FONT_FAMILIES, FONT_SIZE_SPEAKER, FONT_SIZE_DIALOGUE, FONT_SIZE_NEXT_INDICATOR,
     DEFAULT_TEXT_SPEED, CHARACTER_NAME_COLORS,
-    DIALOGUE_COLOR_KEY,
+    DIALOGUE_COLOR_KEY, COLOR_ACCENT,
 )
 from ..core.rich_text import parse_rich_text, RichSegment
 from ..core.logger import Logger
@@ -72,41 +73,78 @@ class DialogueSystem:
         self._build_ui()
 
     def _build_ui(self) -> None:
-        """构建对话 UI 组件。"""
-        # 对话底栏背景
+        """构建对话 UI 组件 — 圆角对话框 + 名签药丸 + 文本阴影。"""
         fh = DIALOGUE_FRAME_HEIGHT
-        self._bg_rect = pyglet.shapes.Rectangle(
-            0, 0, WINDOW_WIDTH, fh,
-            color=COLOR_DIALOGUE_BG[:3],
-            batch=self.ui_batch,
-            group=self._ui_group,
-        )
+        mh = DIALOGUE_MARGIN_H
+        r = DIALOGUE_RADIUS
 
-        # 说话人标签
-        self._speaker_label = Label(
-            "", font_name=FONT_FAMILIES, font_size=FONT_SIZE_SPEAKER,
-            weight="bold", color=DEFAULT_SPEAKER_COLOR,
-            x=DIALOGUE_PADDING, y=fh - DIALOGUE_PADDING - 24,
-            anchor_x="left", anchor_y="top",
+        # 对话框背景 — 圆角矩形，左右12px边距，底部4px间距
+        self._bg_rect = pyglet.shapes.RoundedRectangle(
+            mh, DIALOGUE_MARGIN_BOTTOM, WINDOW_WIDTH - mh * 2, fh - DIALOGUE_MARGIN_BOTTOM, r,
+            color=COLOR_DIALOGUE_BG[:3],
+            batch=self.ui_batch, group=self._ui_group,
+        )
+        # 底部高光线（柚子社标志性设计）
+        self._bg_edge = pyglet.shapes.Line(
+            mh + r, DIALOGUE_MARGIN_BOTTOM, WINDOW_WIDTH - mh - r, DIALOGUE_MARGIN_BOTTOM,
+            color=(255, 255, 255, 25),
             batch=self.ui_batch, group=self._ui_group,
         )
 
-        # 对话文本标签（单行多行显示）
+        # 说话人名签背景和色条（旁白时隐藏）
+        pill_x = mh + DIALOGUE_PADDING
+        pill_y = fh + SPEAKER_PILL_OFFSET
+        self._speaker_bg = pyglet.shapes.RoundedRectangle(
+            pill_x, pill_y, 80, SPEAKER_PILL_HEIGHT, 8,
+            color=(20, 20, 38, 220),
+            batch=self.ui_batch, group=self._ui_group,
+        )
+        self._speaker_bar = pyglet.shapes.Rectangle(
+            pill_x, pill_y + 4, 4, SPEAKER_PILL_HEIGHT - 8,
+            color=COLOR_ACCENT[:3],
+            batch=self.ui_batch, group=self._ui_group,
+        )
+        self._speaker_bg.visible = False
+        self._speaker_bar.visible = False
+
+        # 说话人文字标签（名签内部）
+        self._speaker_label = Label(
+            "", font_name=FONT_FAMILIES, font_size=FONT_SIZE_SPEAKER,
+            weight="bold", color=DEFAULT_SPEAKER_COLOR,
+            x=pill_x + 14, y=pill_y + SPEAKER_PILL_HEIGHT // 2,
+            anchor_x="left", anchor_y="center",
+            batch=self.ui_batch, group=self._ui_group,
+        )
+
+        # 文本阴影层（黑色偏移 1px，补偿 pyglet 无原生 text-outline）
+        text_x = mh + DIALOGUE_PADDING
+        text_y = fh - DIALOGUE_PADDING - 12
+        text_w = WINDOW_WIDTH - (mh + DIALOGUE_PADDING) * 2
+        self._text_shadow = Label(
+            "", font_name=FONT_FAMILIES, font_size=FONT_SIZE_DIALOGUE,
+            color=COLOR_TEXT_SHADOW,
+            x=text_x + 1, y=text_y - 1,
+            width=text_w,
+            anchor_x="left", anchor_y="top",
+            multiline=True,
+            batch=self.ui_batch, group=self._ui_group,
+        )
+        # 对话文本标签
         self._text_label = Label(
             "", font_name=FONT_FAMILIES, font_size=FONT_SIZE_DIALOGUE,
             color=COLOR_TEXT_PRIMARY,
-            x=DIALOGUE_PADDING, y=fh - DIALOGUE_PADDING - 24 - 28,
-            width=WINDOW_WIDTH - DIALOGUE_PADDING * 2,
+            x=text_x, y=text_y,
+            width=text_w,
             anchor_x="left", anchor_y="top",
             multiline=True,
             batch=self.ui_batch, group=self._ui_group,
         )
 
-        # 推进指示器
+        # 推进指示器（CTC — Click To Continue）
         self._next_label = Label(
             "▼", font_name=FONT_FAMILIES, font_size=FONT_SIZE_NEXT_INDICATOR,
             color=COLOR_TEXT_PRIMARY,
-            x=WINDOW_WIDTH - DIALOGUE_PADDING, y=DIALOGUE_PADDING,
+            x=WINDOW_WIDTH - mh - DIALOGUE_PADDING, y=DIALOGUE_PADDING + 4,
             anchor_x="right", anchor_y="bottom",
             batch=self.ui_batch, group=self._ui_group,
         )
@@ -123,16 +161,36 @@ class DialogueSystem:
             speaker: 说话角色名（空串=旁白）。
             entry: 原始 dialogue entry dict（用于读取 color 字段等）。
         """
-        # 设置说话人
+        # 设置说话人名签
         if speaker:
-            speaker_color = CHARACTER_NAME_COLORS.get(
-                speaker, DEFAULT_SPEAKER_COLOR)
+            speaker_color_hex = CHARACTER_NAME_COLORS.get(speaker, "#42A5F5")
+            speaker_rgba = self._parse_color(speaker_color_hex)
             self._speaker_label.text = speaker
-            self._speaker_label.color = self._parse_color(speaker_color)
             self._speaker_label.visible = True
+
+            # 动态计算名签宽度
+            text_w_px = len(speaker) * FONT_SIZE_SPEAKER * 0.8 + 28
+            pill_w = max(60, int(text_w_px))
+            pill_x = DIALOGUE_MARGIN_H + DIALOGUE_PADDING
+            pill_y = DIALOGUE_FRAME_HEIGHT + SPEAKER_PILL_OFFSET
+
+            self._speaker_bg.x = pill_x
+            self._speaker_bg.y = pill_y
+            self._speaker_bg.width = pill_w
+            self._speaker_bg.visible = True
+
+            self._speaker_bar.x = pill_x
+            self._speaker_bar.y = pill_y + 4
+            self._speaker_bar.color = speaker_rgba[:3]
+            self._speaker_bar.visible = True
+
+            self._speaker_label.x = pill_x + 14
+            self._speaker_label.y = pill_y + SPEAKER_PILL_HEIGHT // 2
         else:
             self._speaker_label.text = ""
             self._speaker_label.visible = False
+            self._speaker_bg.visible = False
+            self._speaker_bar.visible = False
 
         # 解析富文本
         self._segments = parse_rich_text(text)
@@ -151,6 +209,7 @@ class DialogueSystem:
                 self._current_color = self._parse_color(line_color)
 
         self._text_label.text = ""
+        self._text_shadow.text = ""
         self._next_label_visible = False
         self._next_label.opacity = 0
 
@@ -201,6 +260,7 @@ class DialogueSystem:
             char = seg.text[self._seg_char_pos]
             self._accumulated_text += char
             self._text_label.text = self._accumulated_text
+            self._text_shadow.text = self._accumulated_text
 
             # 仅当颜色变化时才更新 Label（避免每字符冗余 setter）
             color = self._current_color or COLOR_TEXT_PRIMARY
@@ -306,6 +366,7 @@ class DialogueSystem:
             elif seg.type == "endcolor":
                 self._current_color = COLOR_TEXT_PRIMARY
         self._text_label.text = full_text
+        self._text_shadow.text = full_text
 
         self._next_label_visible = True
         self._next_label.opacity = 255
@@ -367,6 +428,7 @@ class DialogueSystem:
         self._typing = False
         self._waiting = False
         self._text_label.text = "—— END ——"
+        self._text_shadow.text = "—— END ——"
         self._next_label_visible = False
         self._next_label.opacity = 0
 
@@ -375,6 +437,9 @@ class DialogueSystem:
         self._typing = False
         self._waiting = False
         self._text_label.text = ""
+        self._text_shadow.text = ""
         self._speaker_label.text = ""
+        self._speaker_bg.visible = False
+        self._speaker_bar.visible = False
         self._next_label.opacity = 0
         self._next_label_visible = False

@@ -9,9 +9,13 @@ WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
 
 # ── 对话区域 ──────────────────────────────────────────────────
-DIALOGUE_FRAME_HEIGHT = 170
-DIALOGUE_PADDING = 20
-DIALOGUE_MARGIN_BOTTOM = 10
+DIALOGUE_FRAME_HEIGHT = 180         # 170→180
+DIALOGUE_PADDING = 30               # 20→30（内边距增大）
+DIALOGUE_MARGIN_BOTTOM = 8          # 10→8
+DIALOGUE_RADIUS = 24                # 新增：对话框圆角半径
+DIALOGUE_MARGIN_H = 12              # 新增：对话框左右边距
+SPEAKER_PILL_HEIGHT = 32            # 新增：名签高度
+SPEAKER_PILL_OFFSET = 6             # 新增：名签突出对话框上方距离
 
 # ── 文字速度（秒 / 字符） ──────────────────────────────────
 DEFAULT_TEXT_SPEED = 0.04  # 40ms per char
@@ -20,26 +24,29 @@ TEXT_SPEED_MAX = 0.2
 
 # ── 角色名标签 ───────────────────────────────────────────────
 CHARACTER_NAME_COLORS: dict[str, str] = {}
-DEFAULT_SPEAKER_COLOR = (231, 76, 60, 255)       # e74c3c 红
-DEFAULT_NARRATOR_COLOR = (127, 140, 141, 255)    # 7f8c8d 灰
+DEFAULT_SPEAKER_COLOR = (245, 245, 245, 255)      # 白色（名签内）
+DEFAULT_NARRATOR_COLOR = (176, 190, 197, 255)     # B0BEC5（微提亮度）
 
 # ── 字体 ──────────────────────────────────────────────────────
 FONT_FAMILIES = ["Microsoft YaHei", "SimHei", "Microsoft YaHei UI", "sans-serif"]
-FONT_SIZE_SPEAKER = 16
-FONT_SIZE_DIALOGUE = 14
-FONT_SIZE_CHOICE = 14
-FONT_SIZE_NEXT_INDICATOR = 12
+FONT_SIZE_SPEAKER = 15             # 16→15
+FONT_SIZE_DIALOGUE = 18            # 14→18（增大提升可读性）
+FONT_SIZE_CHOICE = 18              # 14→18
+FONT_SIZE_NEXT_INDICATOR = 14      # 12→14
 
 # ── 颜色主题（RGBA 元组） ──────────────────────────────────
-COLOR_BG_DARK       = (10, 10, 26, 255)
-COLOR_DIALOGUE_BG   = (18, 18, 42, 230)
-COLOR_TEXT_PRIMARY  = (236, 240, 241, 255)
-COLOR_TEXT_SPEAKER  = (231, 76, 60, 255)
+COLOR_BG_DARK       = (10, 10, 24, 255)     # 0A0A18
+COLOR_DIALOGUE_BG   = (14, 14, 36, 224)     # 0E0E24E0（微减蓝色倾向）
+COLOR_TEXT_PRIMARY  = (245, 245, 245, 255)   # F5F5F5
+COLOR_TEXT_SPEAKER  = (255, 255, 255, 255)   # 白色（名签内文字）
+COLOR_TEXT_SHADOW   = (0, 0, 0, 120)         # 新增：文字阴影色
 COLOR_OVERLAY       = (255, 255, 255, 255)
-COLOR_CHOICE_BG     = (30, 30, 63, 230)
-COLOR_CHOICE_HOVER  = (45, 45, 94, 230)
-COLOR_CHOICE_TEXT   = (236, 240, 241, 255)
-COLOR_CHOICE_BORDER = (231, 76, 60, 255)
+COLOR_CHOICE_BG     = (255, 255, 255, 25)    # rgba white 10%
+COLOR_CHOICE_HOVER  = (255, 255, 255, 46)    # rgba white 18%
+COLOR_CHOICE_TEXT   = (245, 245, 245, 255)
+COLOR_CHOICE_BORDER = (66, 165, 245, 255)    # #42A5F5（强调色）
+COLOR_ACCENT        = (66, 165, 245, 255)    # #42A5F5（全局强调色）
+COLOR_ACCENT_DIM    = (25, 118, 210, 255)    # #1976D2（深强调色）
 
 # ── 转场效果类型 ─────────────────────────────────────────────
 TRANSITION_CROSSFADE  = "crossfade"
@@ -47,6 +54,7 @@ TRANSITION_SLIDE_LEFT = "slide_left"
 TRANSITION_SLIDE_RIGHT = "slide_right"
 TRANSITION_BLINDS     = "blinds"
 TRANSITION_RIPPLE     = "ripple"
+TRANSITION_FLASH      = "flash"
 TRANSITION_NONE       = "none"
 
 DEFAULT_TRANSITION = TRANSITION_CROSSFADE

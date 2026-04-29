@@ -19,11 +19,18 @@ from ..core.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
     COLOR_CHOICE_BG, COLOR_CHOICE_HOVER, COLOR_CHOICE_TEXT,
     FONT_FAMILIES, FONT_SIZE_CHOICE,
-    DIALOGUE_FRAME_HEIGHT,
+    DIALOGUE_FRAME_HEIGHT, COLOR_ACCENT,
 )
 from ..core.logger import Logger
 
 log = Logger("Choice")
+
+# 选项按钮尺寸
+_CHOICE_W = 560
+_CHOICE_H = 50
+_CHOICE_RADIUS = 10
+_CHOICE_SPACING = 16  # 按钮间距
+_ANIM_DURATION = 0.2  # 每个选项淡入时长（秒）
 
 
 class ChoiceSystem:
@@ -34,8 +41,9 @@ class ChoiceSystem:
         self._group = Group(order=13)
         self._active = False
         self._choices: list[dict] = []
-        self._choice_data: list[dict] = []  # items with text/rect/state
+        self._choice_data: list[dict] = []
         self._hover_index: int = -1
+        self._anim_elapsed: float = 0.0  # 进场动画计时
 
     def show_choices(self, choices: list[dict]) -> None:
         """根据条件过滤并显示选项。
@@ -43,7 +51,6 @@ class ChoiceSystem:
         Args:
             choices: 原始 choices 列表。
         """
-        # 条件过滤
         valid = []
         for c in choices:
             condition = c.get("if", "")
@@ -51,7 +58,6 @@ class ChoiceSystem:
                 valid.append(c)
 
         if not valid:
-            # 无可用选项，直接结束场景
             log.debug("无可用选项（条件过滤后为空），结束场景")
             self.app.scene_manager.end_scene()
             return
@@ -61,30 +67,49 @@ class ChoiceSystem:
         self._choices = valid
         self._hover_index = -1
         self._choice_data = []
+        self._anim_elapsed = 0.0
 
         batch = self.app.ui_batch
         count = len(valid)
-        total_h = count * 50 + (count - 1) * 10
-        start_y = (WINDOW_HEIGHT - DIALOGUE_FRAME_HEIGHT - total_h) // 2 + total_h
+        total_h = count * _CHOICE_H + (count - 1) * _CHOICE_SPACING
+        available_h = WINDOW_HEIGHT - DIALOGUE_FRAME_HEIGHT
+        start_y = (available_h - total_h) // 2 + total_h
 
         for i, choice in enumerate(valid):
-            y = start_y - i * 60
-            rect = pyglet.shapes.Rectangle(
-                WINDOW_WIDTH // 2 - 200, y - 20, 400, 40,
+            y = start_y - i * (_CHOICE_H + _CHOICE_SPACING)
+            bx = WINDOW_WIDTH // 2 - _CHOICE_W // 2
+
+            # 圆角矩形按钮
+            rect = pyglet.shapes.RoundedRectangle(
+                bx, y - _CHOICE_H // 2, _CHOICE_W, _CHOICE_H, _CHOICE_RADIUS,
                 color=COLOR_CHOICE_BG[:3], batch=batch, group=self._group,
             )
+            rect.opacity = 0  # 进场动画：从透明开始
+
+            # 悬停色条指示器（初始隐藏）
+            accent_bar = pyglet.shapes.Rectangle(
+                bx + 4, y - _CHOICE_H // 2 + 8, 3, _CHOICE_H - 16,
+                color=COLOR_ACCENT[:3], batch=batch, group=self._group,
+            )
+            accent_bar.opacity = 0
+
+            # 文字标签
             label = Label(
                 choice["text"], font_name=FONT_FAMILIES, font_size=FONT_SIZE_CHOICE,
                 color=COLOR_CHOICE_TEXT,
-                x=WINDOW_WIDTH // 2, y=y + 4,
+                x=WINDOW_WIDTH // 2, y=y,
                 anchor_x="center", anchor_y="center",
                 batch=batch, group=self._group,
             )
+            label.opacity = 0
+
             self._choice_data.append({
                 "choice": choice,
                 "rect": rect,
+                "accent": accent_bar,
                 "label": label,
-                "rect_bounds": (WINDOW_WIDTH // 2 - 200, y - 20, 400, 40),
+                "rect_bounds": (bx, y - _CHOICE_H // 2, _CHOICE_W, _CHOICE_H),
+                "anim_delay": i * 0.08,  # 级联延迟
             })
 
     def on_click(self, x: int, y: int) -> bool:
@@ -104,13 +129,10 @@ class ChoiceSystem:
             if rx <= x <= rx + rw and ry <= y <= ry + rh:
                 choice = item["choice"]
                 log.debug("选项点击: text=%r next=%s", choice.get("text", "")[:30], choice.get("next_scene"))
-                # 设置变量
                 set_var = choice.get("set_var", {})
                 if set_var:
                     self.app.variable_bank.bulk_apply(set_var)
-                # 隐藏选项
                 self.hide()
-                # 跳转场景
                 next_scene = choice.get("next_scene", "")
                 if next_scene:
                     self.app.scene_manager.jump_to_scene(next_scene)
@@ -119,21 +141,38 @@ class ChoiceSystem:
         return False
 
     def update(self, dt: float) -> None:
-        """帧更新：检测鼠标悬停高亮。"""
+        """帧更新：进场动画 + 鼠标悬停高亮。"""
         if not self._active:
             return
-        # 获取鼠标位置
+
+        self._anim_elapsed += dt
         x, y = self._get_mouse_pos()
+
         found = False
         for i, item in enumerate(self._choice_data):
+            # 进场动画：每个选项延迟淡入
+            delay = item["anim_delay"]
+            if self._anim_elapsed > delay:
+                progress = min(1.0, (self._anim_elapsed - delay) / _ANIM_DURATION)
+                # ease-out: 1 - (1-t)^2
+                eased = 1.0 - (1.0 - progress) ** 2
+                target_opacity = int(eased * 255)
+                if item["rect"].opacity < 255:
+                    item["rect"].opacity = target_opacity
+                    item["label"].opacity = target_opacity
+
+            # 悬停检测
             rx, ry, rw, rh = item["rect_bounds"]
             if rx <= x <= rx + rw and ry <= y <= ry + rh:
                 if self._hover_index != i:
                     self._hover_index = i
                     item["rect"].color = COLOR_CHOICE_HOVER[:3]
+                    item["accent"].opacity = 255
                 found = True
             else:
                 item["rect"].color = COLOR_CHOICE_BG[:3]
+                item["accent"].opacity = 0
+
         if not found:
             self._hover_index = -1
 
@@ -148,6 +187,7 @@ class ChoiceSystem:
         """隐藏所有选项。"""
         for item in self._choice_data:
             item["rect"].delete()
+            item["accent"].delete()
             item["label"].delete()
         self._choice_data = []
         self._choices = []

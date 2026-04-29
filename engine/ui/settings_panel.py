@@ -74,9 +74,9 @@ class Slider:
         self._track = Rectangle(x, y - 2, width, 4,
                                 color=(80, 80, 80), batch=batch, group=group)
 
-        # 滑块
+        # 滑块（半径 8→12）
         thumb_x = self._value_to_x(value)
-        self._thumb = Circle(thumb_x, y, 8, color=TEXT_ACCENT[:3],
+        self._thumb = Circle(thumb_x, y, 12, color=TEXT_ACCENT[:3],
                              batch=batch, group=group)
 
     def _format_value(self, val: float) -> str:
@@ -151,18 +151,18 @@ class Toggle:
                             x=x, y=y, anchor_x="left", anchor_y="center",
                             batch=batch, group=group)
 
-        self._bg = Rectangle(x + 200, y - 7, 36, 14,
+        self._bg_r = RoundedRectangle(x + 200, y - 11, 44, 22, 11,
                              color=(80, 80, 80), batch=batch, group=group)
-        self._thumb = Circle(x + 200 + (18 if state else 0), y, 9,
+        self._thumb = Circle(x + 200 + (22 if state else 0), y, 10,
                              color=TEXT_ACCENT[:3], batch=batch, group=group)
         self._toggle_x = x + 200
 
     def on_click(self, px: int, py: int) -> bool:
         if self._toggle_x - 10 <= px <= self._toggle_x + 46 and \
-           self._bg.y - 10 <= py <= self._bg.y + 24:
+           self._bg_r.y - 10 <= py <= self._bg_r.y + 24:
                 self._state = not self._state
-                self._thumb.x = self._toggle_x + (18 if self._state else 0)
-                self._bg.color = TEXT_ACCENT[:3] if self._state else (80, 80, 80)
+                self._thumb.x = self._toggle_x + (22 if self._state else 0)
+                self._bg_r.color = TEXT_ACCENT[:3] if self._state else (80, 80, 80)
                 if self._on_change:
                     self._on_change(self._state)
                 return True
@@ -174,7 +174,7 @@ class Toggle:
 
     def delete(self) -> None:
         self._label.delete()
-        self._bg.delete()
+        self._bg_r.delete()
         self._thumb.delete()
 
 
@@ -542,6 +542,8 @@ class SettingsPanel:
                     # 更新标签页颜色
                     for j, tb2 in enumerate(self._tab_buttons):
                         tb2["rect"].color = TEXT_ACCENT[:3] if j == i else PANEL_BG[:3]
+                        if "underline" in tb2:
+                            tb2["underline"].color = TEXT_ACCENT[:3] if j == i else PANEL_BG[:3]
                 return True
 
         # 控件点击

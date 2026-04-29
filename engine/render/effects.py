@@ -20,7 +20,7 @@ from ..core.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
     TRANSITION_DURATION, TRANSITION_CROSSFADE,
     TRANSITION_SLIDE_LEFT, TRANSITION_SLIDE_RIGHT,
-    TRANSITION_BLINDS, TRANSITION_RIPPLE, TRANSITION_NONE,
+    TRANSITION_BLINDS, TRANSITION_RIPPLE, TRANSITION_FLASH, TRANSITION_NONE,
     FILTER_COLORS, COLOR_OVERLAY,
 )
 from ..core.logger import Logger
@@ -173,6 +173,8 @@ class EffectSystem:
             self._update_blinds(dt)
         elif t["type"] == TRANSITION_RIPPLE:
             self._update_ripple(dt)
+        elif t["type"] == TRANSITION_FLASH:
+            self._update_flash(dt)
 
     def _update_crossfade(self, dt: float) -> None:
         """淡入淡出转场更新。"""
@@ -322,6 +324,38 @@ class EffectSystem:
 
         elif t["phase"] == "fade_out":
             progress = min(1.0, t["progress"] / half)
+            overlay.opacity = int((1.0 - progress) * 255)
+            if progress >= 1.0:
+                self._end_transition()
+
+    def _update_flash(self, dt: float) -> None:
+        """Flash White 转场：快速全白闪烁 → 渐显新场景。"""
+        assert self._transition is not None
+        assert self._transition_overlay is not None
+        t: dict = self._transition
+        overlay = self._transition_overlay
+        half = t["half_duration"]
+
+        if t["phase"] == "fade_in":
+            # 快速全白（50ms 内铺满）
+            progress = min(1.0, t["progress"] / 0.05)
+            overlay.opacity = int(progress * 255)
+            if progress >= 1.0:
+                t["phase"] = "midpoint"
+                t["progress"] = 0.0
+                if t["on_midpoint"]:
+                    t["on_midpoint"]()
+
+        elif t["phase"] == "midpoint":
+            # 短暂全白保持
+            if t["progress"] >= 0.1:
+                t["phase"] = "fade_out"
+                t["progress"] = 0.0
+
+        elif t["phase"] == "fade_out":
+            # 渐显新场景（用剩余时间）
+            fade_duration = max(0.1, half - 0.15)
+            progress = min(1.0, t["progress"] / fade_duration)
             overlay.opacity = int((1.0 - progress) * 255)
             if progress >= 1.0:
                 self._end_transition()

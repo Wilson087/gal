@@ -33,10 +33,10 @@ _TEXT = (255, 255, 255, 255)
 _TEXT_DIM = (170, 170, 170, 255)
 _TITLE_COLOR = (255, 255, 255, 255)
 
-_BTN_W = 280
-_BTN_H = 44
-_BTN_RADIUS = 8
-_BTN_SPACING = 12
+_BTN_W = 320
+_BTN_H = 50
+_BTN_RADIUS = 10
+_BTN_SPACING = 16
 
 
 class MainMenu:
@@ -52,7 +52,7 @@ class MainMenu:
         self._in_script_selection = False
         self._buttons: list[dict] = []
         self._script_buttons: list[dict] = []
-        self._bg_rect: Optional[Rectangle] = None
+        self._bg_rects: list[Rectangle] = []
         self._title_label: Optional[Label] = None
         self._version_label: Optional[Label] = None
         self._subtitle_label: Optional[Label] = None
@@ -67,14 +67,23 @@ class MainMenu:
         self._script_buttons = []
         w, h = self.app.width, self.app.height
 
-        # 背景遮罩
-        self._bg_rect = Rectangle(0, 0, w, h, color=_BG[:3],
-                                   batch=self._batch, group=self._group)
+        # 背景渐变遮罩：底部→顶部由暗到透明（用多层 Rectangle 模拟）
+        self._bg_rects = []
+        gradient_steps = 8
+        for i in range(gradient_steps):
+            y = i * (h // gradient_steps)
+            height = h // gradient_steps + 2
+            # 底部最暗 (alpha ~180)，顶部透明 (alpha ~0)
+            alpha = int(180 * (gradient_steps - i) / gradient_steps)
+            rect = Rectangle(0, y, w, height,
+                            color=(0, 0, 0), batch=self._batch, group=self._group)
+            rect.opacity = alpha
+            self._bg_rects.append(rect)
 
         # 标题
         sm = self.app.scene_manager
         title = sm.title if sm.title else "Visual Novel"
-        self._title_label = Label(title, font_name=FONT_FAMILIES, font_size=36,
+        self._title_label = Label(title, font_name=FONT_FAMILIES, font_size=42,
                                   color=_TITLE_COLOR, weight="bold",
                                   x=w // 2, y=h - 120,
                                   anchor_x="center", anchor_y="center",
@@ -86,7 +95,7 @@ class MainMenu:
             self._version_label = Label(f"version {ver}",
                                         font_name=FONT_FAMILIES, font_size=12,
                                         color=_TEXT_DIM,
-                                        x=w // 2, y=h - 155,
+                                        x=w // 2, y=h - 162,
                                         anchor_x="center", anchor_y="center",
                                         batch=self._batch, group=self._group)
 
@@ -125,8 +134,15 @@ class MainMenu:
                         x=w // 2, y=y + _BTN_H // 2,
                         anchor_x="center", anchor_y="center",
                         batch=self._batch, group=self._group)
+            # 悬停三角指示器
+            tri = Label("▶", font_name=FONT_FAMILIES, font_size=10,
+                       color=_TEXT_DIM,
+                       x=x + 12, y=y + _BTN_H // 2,
+                       anchor_x="left", anchor_y="center",
+                       batch=self._batch, group=self._group)
+            tri.visible = False
             self._buttons.append({
-                "rect": rect, "label": lbl,
+                "rect": rect, "label": lbl, "triangle": tri,
                 "bounds": (x, y, _BTN_W, _BTN_H),
                 "callback": cb, "hover": False,
             })
@@ -214,9 +230,10 @@ class MainMenu:
 
     def _clear_all(self) -> None:
         self._clear_buttons()
-        if self._bg_rect:
-            self._bg_rect.delete()
-            self._bg_rect = None
+        if hasattr(self, '_bg_rects'):
+            for r in self._bg_rects:
+                r.delete()
+            self._bg_rects = []
         if self._title_label:
             self._title_label.delete()
             self._title_label = None
@@ -273,6 +290,8 @@ class MainMenu:
             if rect and hovering != btn.get("hover", False):
                 btn["hover"] = hovering
                 rect.color = _BTN_HOVER[:3] if hovering else _BTN_BG[:3]
+                if btn.get("triangle"):
+                    btn["triangle"].visible = hovering
 
     # ── 按钮回调 ───────────────────────────────────────────
 
