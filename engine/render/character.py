@@ -4,26 +4,28 @@
 管理左右立绘 Sprite 的加载、切换、淡入淡出和说话动画。
 """
 
+from __future__ import annotations
+
 import os
 import math
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Batch, Group
 
-from .constants import (
+from ..core.constants import (
     IMAGES_DIR, WINDOW_WIDTH, WINDOW_HEIGHT,
     CHAR_X_LEFT_RATIO, CHAR_X_RIGHT_RATIO, CHAR_Y_BOTTOM_MARGIN,
     CHAR_FADE_DURATION, CHAR_SPEAK_FLOAT_AMOUNT,
     CHAR_SPEAK_BOUNCE_STEPS, CHAR_ANIMATION_INTERVAL,
     PLACEHOLDER_COLORS,
 )
+from ..core.logger import Logger
 
-
-def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
-    """将十六进制颜色转为 RGB 元组。"""
-    hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+log = Logger("Char")
 
 
 class CharacterSprite:
@@ -75,28 +77,28 @@ class CharacterSprite:
 
     def start_fade_in(self, duration: float = CHAR_FADE_DURATION) -> None:
         self.target_opacity = 255
-        self._fade_speed = 255 / (duration * 60) if duration > 0 else 255
+        self._fade_speed = 255.0 / duration if duration > 0 else 255.0
         self._fading_in = True
         self._fading_out = False
         self.set_opacity(0)
 
     def start_fade_out(self, duration: float = CHAR_FADE_DURATION) -> None:
         self.target_opacity = 0
-        self._fade_speed = 255 / (duration * 60) if duration > 0 else 255
+        self._fade_speed = 255.0 / duration if duration > 0 else 255.0
         self._fading_out = True
         self._fading_in = False
 
-    def update_fade(self) -> bool:
+    def update_fade(self, dt: float = 1.0 / 60) -> bool:
         """更新淡入淡出。返回 True 表示动画仍在进行。"""
         if not self.sprite:
             return False
         if self._fading_in:
-            new_opacity = int(min(255, self.sprite.opacity + self._fade_speed))
+            new_opacity = int(min(255, self.sprite.opacity + self._fade_speed * dt))
             self.sprite.opacity = new_opacity
             if new_opacity >= 255:
                 self._fading_in = False
         elif self._fading_out:
-            new_opacity = int(max(0, self.sprite.opacity - self._fade_speed))
+            new_opacity = int(max(0, self.sprite.opacity - self._fade_speed * dt))
             self.sprite.opacity = new_opacity
             if new_opacity <= 0:
                 self._fading_out = False
@@ -150,6 +152,8 @@ class CharacterManager:
         if char_id == current_id:
             return
 
+        log.debug("立绘切换 %s: %s -> %s", side, current_id, char_id)
+
         # 删除旧立绘
         if current:
             current.delete()
@@ -176,6 +180,7 @@ class CharacterManager:
 
     def start_speaking(self, side: str) -> None:
         """启动指定侧立绘说话浮动动画。"""
+        log.debug("说话动画开始: side=%s", side)
         self._speaking_side = side
         self._speak_step = 0
         self._speak_timer = 0.0
@@ -193,9 +198,9 @@ class CharacterManager:
         """每帧更新立绘动画。"""
         # 更新淡入淡出
         if self.left:
-            self.left.update_fade()
+            self.left.update_fade(dt)
         if self.right:
-            self.right.update_fade()
+            self.right.update_fade(dt)
 
         # 说话浮动动画
         if self._speaking_side:
@@ -221,8 +226,27 @@ class CharacterManager:
             self.right = None
 
     def apply_shake(self, dx: float, dy: float) -> None:
-        """应用震动偏移。"""
+        """应用震动偏移（累积方式，保持向后兼容）。"""
         if self.left:
             self.left.apply_shake(dx, dy)
         if self.right:
             self.right.apply_shake(dx, dy)
+
+    def set_shake_offset(self, dx: float, dy: float,
+                          saved: dict) -> None:
+        """基于保存的原始位置设置绝对震动偏移。"""
+        for spr in (self.left, self.right):
+            if spr and spr.sprite and id(spr.sprite) in saved:
+                ox, oy = saved[id(spr.sprite)]
+                spr.sprite.x = ox + dx
+                spr.sprite.y = oy + dy
+
+    def reset_shake(self, saved: Optional[dict] = None) -> None:
+        """重置震动偏移，恢复到原始位置。"""
+        if not saved:
+            return
+        for spr in (self.left, self.right):
+            if spr and spr.sprite and id(spr.sprite) in saved:
+                ox, oy = saved[id(spr.sprite)]
+                spr.sprite.x = ox
+                spr.sprite.y = oy

@@ -4,20 +4,28 @@
 场景转场、画面滤镜、粒子系统（雪/雨）、屏幕震动。
 """
 
+from __future__ import annotations
+
 import math
 import random
-from typing import Optional, Callable
+from typing import TYPE_CHECKING, Optional, Callable
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Batch, Group
 
-from .constants import (
+from ..core.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
     TRANSITION_DURATION, TRANSITION_CROSSFADE,
     TRANSITION_SLIDE_LEFT, TRANSITION_SLIDE_RIGHT,
     TRANSITION_BLINDS, TRANSITION_RIPPLE, TRANSITION_NONE,
     FILTER_COLORS, COLOR_OVERLAY,
 )
+from ..core.logger import Logger
+
+log = Logger("FX")
 
 
 class EffectSystem:
@@ -30,6 +38,7 @@ class EffectSystem:
 
         # 转场状态
         self._transition: Optional[dict] = None
+        self._transition_overlay: Optional[pyglet.sprite.Sprite] = None
 
         # 滤镜状态
         self._filter_sprite: Optional[pyglet.sprite.Sprite] = None
@@ -42,6 +51,8 @@ class EffectSystem:
         self._shake_time: float = 0.0
         self._shake_intensity: int = 0
         self._shake_offset: tuple[float, float] = (0.0, 0.0)
+        # 震动前保存精灵原始位置用于恢复
+        self._saved_positions: dict[int, tuple[float, float]] = {}
 
     # ====================================================================
     #  转场效果
@@ -63,6 +74,8 @@ class EffectSystem:
             if on_complete:
                 on_complete()
             return
+
+        log.debug("开始转场: type=%s duration=%.2f", transition_type, TRANSITION_DURATION)
 
         self._transition = {
             "type": transition_type,
@@ -90,6 +103,7 @@ class EffectSystem:
 
     def _init_strips(self, transition_type: str) -> None:
         """为滑动/百叶窗创建 strip sprite 列表。"""
+        assert self._transition is not None
         strip_count = 20
         strip_w = WINDOW_WIDTH / strip_count
         self._transition["strips"] = []
@@ -121,23 +135,34 @@ class EffectSystem:
         # 震动
         if self._shake_time > 0:
             self._shake_time -= dt
-            self._shake_offset = (
-                random.randint(-self._shake_intensity, self._shake_intensity),
-                random.randint(-self._shake_intensity, self._shake_intensity),
-            )
-            # 应用到背景和立绘
+            offset_x = random.randint(-self._shake_intensity, self._shake_intensity)
+            offset_y = random.randint(-self._shake_intensity, self._shake_intensity)
+            self._shake_offset = (offset_x, offset_y)
+
+            # 首次震动：保存原始位置
+            if not self._saved_positions:
+                self._save_original_positions()
+
+            # 绝对定位：原始位置 + 当前偏移（非累积）
             if hasattr(self.app, "background_manager"):
-                self.app.background_manager.apply_shake(
-                    self._shake_offset[0], self._shake_offset[1])
+                self.app.background_manager.set_shake_offset(
+                    offset_x, offset_y, self._saved_positions)
             if hasattr(self.app, "character_manager"):
-                self.app.character_manager.apply_shake(
-                    self._shake_offset[0], self._shake_offset[1])
+                self.app.character_manager.set_shake_offset(
+                    offset_x, offset_y, self._saved_positions)
         elif self._shake_offset != (0, 0):
+            # 震动结束：恢复到原始位置
+            if hasattr(self.app, "background_manager"):
+                self.app.background_manager.reset_shake(self._saved_positions)
+            if hasattr(self.app, "character_manager"):
+                self.app.character_manager.reset_shake(self._saved_positions)
             self._shake_offset = (0, 0)
+            self._saved_positions.clear()
 
     def _update_transition(self, dt: float) -> None:
         """更新转场动画。"""
-        t = self._transition
+        assert self._transition is not None
+        t: dict = self._transition
         t["progress"] += dt
 
         if t["type"] == TRANSITION_CROSSFADE:
@@ -151,7 +176,9 @@ class EffectSystem:
 
     def _update_crossfade(self, dt: float) -> None:
         """淡入淡出转场更新。"""
-        t = self._transition
+        assert self._transition is not None
+        assert self._transition_overlay is not None
+        t: dict = self._transition
         overlay = self._transition_overlay
         half = t["half_duration"]
 
@@ -176,7 +203,9 @@ class EffectSystem:
 
     def _update_slide(self, dt: float) -> None:
         """滑动转场更新。"""
-        t = self._transition
+        assert self._transition is not None
+        assert self._transition_overlay is not None
+        t: dict = self._transition
         overlay = self._transition_overlay
         strips = t["strips"]
         total = len(strips)
@@ -224,7 +253,8 @@ class EffectSystem:
 
     def _update_blinds(self, dt: float) -> None:
         """百叶窗转场更新。"""
-        t = self._transition
+        assert self._transition is not None
+        t: dict = self._transition
         strips = t["strips"]
         half = t["half_duration"]
 
@@ -257,7 +287,9 @@ class EffectSystem:
 
     def _update_ripple(self, dt: float) -> None:
         """涟漪转场更新（简化：圆形扩散）。"""
-        t = self._transition
+        assert self._transition is not None
+        assert self._transition_overlay is not None
+        t: dict = self._transition
         overlay = self._transition_overlay
         half = t["half_duration"]
 
@@ -282,22 +314,23 @@ class EffectSystem:
 
     def _end_transition(self) -> None:
         """结束转场，清理资源。"""
+        log.debug("转场结束")
         if self._transition_overlay:
             self._transition_overlay.delete()
             self._transition_overlay = None
 
-        if self._transition and self._transition.get("strips"):
-            for s in self._transition["strips"]:
-                s["sprite"].delete()
-
-        on_complete = None
-        if self._transition:
-            on_complete = self._transition.get("on_complete")
-
-        self._transition = None
-
-        if on_complete:
-            on_complete()
+        t = self._transition
+        if t is not None:
+            strips = t.get("strips")
+            if strips:
+                for s in strips:
+                    s["sprite"].delete()
+            on_complete = t.get("on_complete")
+            self._transition = None
+            if on_complete:
+                on_complete()
+        else:
+            self._transition = None
 
     # ====================================================================
     #  画面滤镜
@@ -310,6 +343,7 @@ class EffectSystem:
             filter_name: 滤镜名（sepia/night/memory）。
             intensity: 滤镜强度 0.0-1.0。
         """
+        log.debug("应用滤镜: %s intensity=%.2f", filter_name, intensity)
         self.remove_filter()
         rgb = FILTER_COLORS.get(filter_name)
         if not rgb or filter_name == "none":
@@ -335,26 +369,41 @@ class EffectSystem:
 
     def start_snow(self, count: int = 60) -> None:
         """启动飘雪效果。"""
+        log.debug("启动飘雪: count=%d", count)
         self._particle_type = "snow"
         self._particles = []
+        batch = self.app.ui_batch
+        group = self._overlay_group
         for _ in range(count):
+            x = random.randint(0, WINDOW_WIDTH)
+            y = random.randint(0, WINDOW_HEIGHT)
+            size = random.randint(2, 5)
+            shape = pyglet.shapes.Circle(
+                x, y, size, color=(255, 255, 255), batch=batch, group=group)
             self._particles.append({
-                "x": random.randint(0, WINDOW_WIDTH),
-                "y": random.randint(0, WINDOW_HEIGHT),
+                "shape": shape,
+                "x": x, "y": y,
                 "speed_x": random.uniform(-0.3, 0.3),
                 "speed_y": random.uniform(1.0, 2.5),
-                "size": random.randint(2, 5),
+                "size": size,
                 "phase": random.uniform(0, math.pi * 2),
             })
 
     def start_rain(self, count: int = 80) -> None:
         """启动下雨效果。"""
+        log.debug("启动下雨: count=%d", count)
         self._particle_type = "rain"
         self._particles = []
+        batch = self.app.ui_batch
+        group = self._overlay_group
         for _ in range(count):
+            x = random.randint(0, WINDOW_WIDTH)
+            y = random.randint(0, WINDOW_HEIGHT)
+            shape = pyglet.shapes.Line(
+                x, y, x, y, color=(180, 200, 220), batch=batch, group=group)
             self._particles.append({
-                "x": random.randint(0, WINDOW_WIDTH),
-                "y": random.randint(0, WINDOW_HEIGHT),
+                "shape": shape,
+                "x": x, "y": y,
                 "speed_x": random.uniform(-2.0, -0.5),
                 "speed_y": random.uniform(4.0, 8.0),
                 "length": random.randint(8, 16),
@@ -368,6 +417,7 @@ class EffectSystem:
     def _update_particles(self, dt: float) -> None:
         """更新粒子位置。"""
         for p in self._particles:
+            shape = p["shape"]
             if self._particle_type == "snow":
                 p["x"] += p["speed_x"] * dt * 60 + math.sin(p["phase"]) * 0.5
                 p["y"] -= p["speed_y"] * dt * 60
@@ -375,37 +425,32 @@ class EffectSystem:
                 if p["y"] < -10:
                     p["y"] = WINDOW_HEIGHT + 10
                     p["x"] = random.randint(0, WINDOW_WIDTH)
+                shape.x = p["x"]
+                shape.y = p["y"]
             elif self._particle_type == "rain":
                 p["x"] += p["speed_x"] * dt * 60
                 p["y"] -= p["speed_y"] * dt * 60
                 if p["y"] < -20:
                     p["y"] = WINDOW_HEIGHT + 20
                     p["x"] = random.randint(0, WINDOW_WIDTH)
-
-    def draw_particles(self) -> None:
-        """在绘制帧时渲染粒子。"""
-        if self._particle_type == "none" or not self._particles:
-            return
-
-        batch = self.app.ui_batch
-        group = self._overlay_group
-
-        for p in self._particles:
-            if self._particle_type == "snow":
-                shape = pyglet.shapes.Circle(
-                    p["x"], p["y"], p["size"],
-                    color=(255, 255, 255), batch=batch, group=group,
-                )
-            elif self._particle_type == "rain":
-                shape = pyglet.shapes.Line(
-                    p["x"], p["y"], p["x"] + p["speed_x"] * 2,
-                    p["y"] - p["length"],
-                    color=(180, 200, 220), batch=batch, group=group,
-                )
+                shape.x = p["x"]
+                shape.y = p["y"]
+                shape.x2 = p["x"] + p["speed_x"] * 2
+                shape.y2 = p["y"] - p["length"]
 
     # ====================================================================
     #  屏幕震动
     # ====================================================================
+
+    def _save_original_positions(self) -> None:
+        """保存所有受影响精灵的原始位置。"""
+        self._saved_positions.clear()
+        bg = self.app.background_manager.get_sprite()
+        if bg:
+            self._saved_positions[id(bg)] = (bg.x, bg.y)
+        for cm in (self.app.character_manager.left, self.app.character_manager.right):
+            if cm and cm.sprite:
+                self._saved_positions[id(cm.sprite)] = (cm.sprite.x, cm.sprite.y)
 
     def start_shake(self, duration: float = 0.5, intensity: int = 8) -> None:
         """启动屏幕震动。
@@ -414,6 +459,7 @@ class EffectSystem:
             duration: 震动持续秒数。
             intensity: 震动最大像素偏移。
         """
+        log.debug("启动震动: duration=%.2f intensity=%d", duration, intensity)
         self._shake_time = duration
         self._shake_intensity = intensity
 

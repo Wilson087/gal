@@ -5,13 +5,21 @@
 支持 4 种适配模式，窗口 resize 时自动重算。
 """
 
+from __future__ import annotations
+
 import os
-from typing import Optional, Callable
+from typing import TYPE_CHECKING, Optional, Callable
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Group
 
-from .constants import IMAGES_DIR, COLOR_BG_DARK
+from ..core.constants import IMAGES_DIR, COLOR_BG_DARK
+from ..core.logger import Logger
+
+log = Logger("BG")
 
 # 适配模式常量
 FIT_COVER = "cover"
@@ -60,7 +68,9 @@ class BackgroundManager:
             mode: cover / fit / stretch / original
         """
         if mode not in _FIT_MODES:
+            log.debug("未知适配模式: %s", mode)
             return
+        log.debug("切换适配模式: %s", mode)
         self._fit_mode = mode
         self._recalculate_geometry()
 
@@ -85,6 +95,8 @@ class BackgroundManager:
             if on_ready:
                 on_ready()
             return
+
+        log.debug("切换背景: %s -> %s (转场=%s)", self.current_bg_id, bg_id, transition)
 
         new_sprite = self._load_background(bg_id)
         if new_sprite is None:
@@ -199,14 +211,27 @@ class BackgroundManager:
     # ── 震动 ────────────────────────────────────────────────
 
     def apply_shake(self, dx: float, dy: float) -> None:
-        """应用震动偏移。"""
+        """应用震动偏移（累积方式，保持向后兼容）。"""
         self._shake_offset = (dx, dy)
         if self._sprite:
             self._sprite.x += dx
             self._sprite.y += dy
 
-    def reset_shake(self) -> None:
-        """重置震动偏移。"""
+    def set_shake_offset(self, dx: float, dy: float,
+                          saved: dict) -> None:
+        """基于保存的原始位置设置绝对震动偏移。"""
+        self._shake_offset = (dx, dy)
+        if self._sprite and id(self._sprite) in saved:
+            ox, oy = saved[id(self._sprite)]
+            self._sprite.x = ox + dx
+            self._sprite.y = oy + dy
+
+    def reset_shake(self, saved: Optional[dict] = None) -> None:
+        """重置震动偏移，恢复到保存的原始位置。"""
+        if saved and self._sprite and id(self._sprite) in saved:
+            ox, oy = saved[id(self._sprite)]
+            self._sprite.x = ox
+            self._sprite.y = oy
         self._shake_offset = (0.0, 0.0)
 
     # ── 清理 ────────────────────────────────────────────────

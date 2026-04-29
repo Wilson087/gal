@@ -6,6 +6,10 @@
 
 from typing import Any
 
+from .logger import Logger
+
+log = Logger("Var")
+
 
 class VariableBank:
     """游戏变量存储与求值。"""
@@ -34,6 +38,7 @@ class VariableBank:
             name: 变量名。
             value: 新值或相对变更表达式。
         """
+        old = self.variables.get(name, None)
         if isinstance(value, str) and len(value) > 1 and value[0] in ("+", "-"):
             try:
                 delta = int(value)
@@ -42,6 +47,7 @@ class VariableBank:
                 self.variables[name] = value
         else:
             self.variables[name] = value
+        log.debug("变量设置: %s = %s (原值=%s)", name, self.variables[name], old)
 
     def evaluate_condition(self, condition: str) -> bool:
         """求值条件表达式。
@@ -64,23 +70,25 @@ class VariableBank:
         var_val = self.variables.get(var_name, 0)
 
         try:
-            cmp_val = int(raw_val)
+            cmp_val: int | str = int(raw_val)
         except ValueError:
             cmp_val = raw_val
 
+        result = True
         if op == ">":
-            return var_val > cmp_val
+            result = var_val > cmp_val
         elif op == "<":
-            return var_val < cmp_val
+            result = var_val < cmp_val
         elif op == ">=":
-            return var_val >= cmp_val
+            result = var_val >= cmp_val
         elif op == "<=":
-            return var_val <= cmp_val
+            result = var_val <= cmp_val
         elif op == "==":
-            return var_val == cmp_val
+            result = var_val == cmp_val
         elif op == "!=":
-            return var_val != cmp_val
-        return True
+            result = var_val != cmp_val
+        log.debug("条件求值: %s → %s (变量=%s)", condition, result, var_val)
+        return result
 
     def bulk_apply(self, effects: dict[str, Any]) -> None:
         """批量设置变量。
@@ -93,4 +101,5 @@ class VariableBank:
 
     def reset(self) -> None:
         """重置所有变量。"""
+        log.debug("变量重置")
         self.variables.clear()

@@ -4,13 +4,18 @@
 滚动列表显示全部对话历史，支持鼠标滚轮和点击回溯。
 """
 
-from typing import Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 from pyglet.graphics import Group
 from pyglet.shapes import RoundedRectangle, Rectangle
 from pyglet.text import Label
 
-from .constants import FONT_FAMILIES
+from ..core.constants import FONT_FAMILIES
 from .ui_manager import (
     ORDER_PANEL, ORDER_PANEL_BORDER,
     PANEL_BG, PANEL_BORDER, TEXT_NORMAL, TEXT_DIM, TEXT_ACCENT,

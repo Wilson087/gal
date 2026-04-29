@@ -4,18 +4,24 @@
 100 槽位存档系统，支持截图缩略图、快存/快读、JSON 持久化。
 """
 
+from __future__ import annotations
+
 import base64
 import io
 import json
 import os
-
-from .logger import Logger
-
-log = Logger("Save")
 import time
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 from pyglet.image import get_buffer_manager
+from pyglet.image.codecs.png import PNGImageEncoder
+
+from ..core.logger import Logger
+
+log = Logger("Save")
 
 _SAVE_DIR = "saves"
 _SAVE_TEMPLATE = "save_{:02d}.json"
@@ -114,7 +120,9 @@ class SaveManager:
         """实际保存逻辑。"""
         sm = self.app.scene_manager
         if not sm.current_scene_id:
+            log.debug("保存失败: 无当前场景")
             return False
+        log.debug("保存槽位 %d: %s[%d]", slot_index, sm.current_scene_id, sm.dialogue_index)
 
         # 截图
         screenshot_b64 = self._capture_screenshot()
@@ -146,7 +154,9 @@ class SaveManager:
         """实际读取逻辑。"""
         path = self._slot_path(slot_index)
         if not os.path.exists(path):
+            log.debug("读取失败: 槽位 %d 不存在", slot_index)
             return False
+        log.debug("读取槽位 %d", slot_index)
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -169,11 +179,12 @@ class SaveManager:
 
             # 直接编码为 PNG bytes
             buf = io.BytesIO()
-            from pyglet.image.codecs.png import PNGImageEncoder
             encoder = PNGImageEncoder()
-            encoder.encode(image, None, buf)
+            encoder.encode(image, "", buf)
             png_bytes = buf.getvalue()
-            return base64.b64encode(png_bytes).decode("ascii")
+            b64 = base64.b64encode(png_bytes).decode("ascii")
+            log.debug("截图完成: %d bytes (base64)", len(b64))
+            return b64
         except Exception as e:
             log.error("截图失败: %s", e)
             return ""

@@ -4,13 +4,13 @@
 集中管理所有 UI 控件的样式属性，支持按名称引用和继承。
 """
 
-from typing import Any, Optional
+from typing import Any
 
-from .constants import FONT_FAMILIES
+from ..core.constants import FONT_FAMILIES
 
 # ── 样式定义 ──────────────────────────────────────────────
 
-STYLES: dict[str, dict] = {
+STYLES: dict[str, dict[str, Any]] = {
     # 工具栏按钮
     "toolbar_button": {
         "bg": (255, 255, 255, 25),

@@ -4,8 +4,13 @@ UI 编排器模块
 管理导航栏、弹出面板、通知提示等所有 UI 覆盖层。
 """
 
+from __future__ import annotations
+
 import math
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Group, Batch
@@ -13,7 +18,10 @@ from pyglet.window import key, mouse
 from pyglet.shapes import RoundedRectangle, Rectangle, Circle
 from pyglet.text import Label
 
-from .constants import FONT_FAMILIES
+from ..core.constants import FONT_FAMILIES
+from ..core.logger import Logger
+
+log = Logger("UI")
 
 # ── UI 层级 order ──────────────────────────────────────────
 ORDER_NAV_BAR = 30      # 底部导航栏
@@ -77,14 +85,17 @@ def make_button(x: int, y: int, w: int, h: int,
 
 
 def make_label(text: str, x: int, y: int, font_size: int = 12,
-               color: tuple = TEXT_NORMAL, anchor_x: str = "left",
+               color: tuple = TEXT_NORMAL,
+               anchor_x: str = "left",
                anchor_y: str = "center", bold: bool = False,
                batch: Optional[Batch] = None,
                group: Optional[Group] = None) -> Label:
     """创建标准 Label。"""
     return Label(text, font_name=FONT_FAMILIES, font_size=font_size,
                  color=color,
-                 x=x, y=y, anchor_x=anchor_x, anchor_y=anchor_y,
+                 x=x, y=y,
+                 anchor_x=anchor_x,  # type: ignore[arg-type]
+                 anchor_y=anchor_y,  # type: ignore[arg-type]
                  weight="bold" if bold else "normal",
                  batch=batch, group=group)
 
@@ -199,7 +210,7 @@ class UIManager:
         self._nav_bar_height = 46  # 更紧凑
 
         # 面板
-        self._overlay: Optional[RoundedRectangle] = None
+        self._overlay: Optional[Rectangle] = None
         self._active_panel: str = ""  # "", "settings", "save", "load", "history"
         self._panel_elements: list = []  # 面板的所有 UI 元素引用
 
@@ -355,6 +366,7 @@ class UIManager:
             self.hide_all_panels()
             return
 
+        log.debug("显示面板: %s", panel_name)
         self.hide_all_panels()
 
         # 创建遮罩

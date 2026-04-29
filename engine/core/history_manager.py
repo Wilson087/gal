@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from .logger import Logger
+
+log = Logger("History")
+
 
 @dataclass
 class HistoryEntry:
@@ -61,6 +65,7 @@ class HistoryManager:
         else:
             self._entries[self._start] = entry
             self._start = (self._start + 1) % self.MAX_ENTRIES
+        log.debug("历史记录: [%d] %s: %s", len(self.get_entries()) - 1, speaker or "(旁白)", text[:30])
 
     def get_entries(self) -> list[HistoryEntry]:
         """获取所有历史记录（按时间顺序）。"""

@@ -4,18 +4,21 @@
 网格展示存档槽位，支持翻页、截图预览、存档/读档操作。
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from pyglet.graphics import Group, Batch
 from pyglet.shapes import RoundedRectangle, Rectangle
 from pyglet.text import Label
 
-from .constants import FONT_FAMILIES
+from ..core.constants import FONT_FAMILIES
 from .ui_manager import (
     ORDER_PANEL, ORDER_PANEL_BORDER, ORDER_OVERLAY,
     PANEL_BG, PANEL_BORDER, TEXT_NORMAL, TEXT_DIM, TEXT_ACCENT,
     BTN_BG, BTN_HOVER, make_label, hit_test,
 )
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 _PANEL_W = 780
 _PANEL_H = 460
@@ -38,7 +41,7 @@ class SaveLoadPanel:
         self._mode = "save"  # save / load
         self._page = 0
         self._slot_widgets: list[dict] = []
-        self._nav_widgets: list[dict] = []
+        self._nav_widgets: list[Any] = []
         self._panel_bg: Optional[RoundedRectangle] = None
         self._panel_border: Optional[Rectangle] = None
         self._title_label: Optional[Label] = None
@@ -88,10 +91,9 @@ class SaveLoadPanel:
         self._visible = False
 
     def _clear_slots(self) -> None:
-        for w in self._slot_widgets:
-            for v in w.values():
-                if hasattr(v, 'delete'):
-                    v.delete()
+        for entry in self._slot_widgets:
+            for widget in entry["widgets"]:
+                widget.delete()
         self._slot_widgets.clear()
 
     def _clear_nav(self) -> None:
@@ -128,35 +130,41 @@ class SaveLoadPanel:
         bg = RoundedRectangle(x, y, _SLOT_W, _SLOT_H, 6,
                               color=(255, 255, 255, 30),
                               batch=self._batch, group=self._group)
-        self._slot_widgets.append({"bg": bg, "slot": slot_index, "info": info})
+        widgets: list[Any] = [bg]
 
         if info and info.get("screenshot_base64"):
             # 有存档：显示时间+场景名
             ts = info.get("timestamp", "")
             scene = info.get("chapter_title", "")
-            self._slot_widgets.append(
+            widgets.append(
                 Label(ts, font_name=FONT_FAMILIES, font_size=9,
                       color=TEXT_DIM,
                       x=x + 5, y=y + _SLOT_H - 22, anchor_x="left", anchor_y="top",
                       batch=self._batch, group=self._group))
-            self._slot_widgets.append(
+            widgets.append(
                 Label(f"#{slot_index}", font_name=FONT_FAMILIES, font_size=10,
                       color=TEXT_ACCENT,
                       x=x + 5, y=y + 5, anchor_x="left", anchor_y="bottom",
                       batch=self._batch, group=self._group))
-            self._slot_widgets.append(
+            widgets.append(
                 Label(scene[:12], font_name=FONT_FAMILIES, font_size=9,
                       color=TEXT_ACCENT,
                       x=x + 5, y=y + 20, anchor_x="left", anchor_y="bottom",
                       batch=self._batch, group=self._group))
         else:
             # 空槽位
-            self._slot_widgets.append(
+            widgets.append(
                 Label("空", font_name=FONT_FAMILIES, font_size=14,
                       color=TEXT_DIM,
                       x=x + _SLOT_W // 2, y=y + _SLOT_H // 2,
                       anchor_x="center", anchor_y="center",
                       batch=self._batch, group=self._group))
+
+        self._slot_widgets.append({
+            "slot": slot_index,
+            "bounds": (x, y, _SLOT_W, _SLOT_H),
+            "widgets": widgets,
+        })
 
     def _build_nav(self) -> None:
         """构建底部翻页按钮。"""
@@ -212,17 +220,10 @@ class SaveLoadPanel:
         if not (px <= x <= px + w and py <= y <= py + h):
             return False
 
-        # 检查槽位点击
-        grid_w = _COLS * _SLOT_W + (_COLS - 1) * _SLOT_GAP
-        start_x = px + (w - grid_w) // 2
-        start_y = py + h - 70
-
-        for idx, slot_data in enumerate(self._slot_widgets):
-            col = idx % _COLS
-            row = idx // _COLS
-            sx = start_x + col * (_SLOT_W + _SLOT_GAP)
-            sy = start_y - row * (_SLOT_H + _SLOT_GAP)
-            if sx <= x <= sx + _SLOT_W and sy <= y <= sy + _SLOT_H:
+        # 检查槽位点击（使用 slot_data 中保存的 bounds）
+        for slot_data in self._slot_widgets:
+            sx, sy, sw, sh = slot_data["bounds"]
+            if sx <= x <= sx + sw and sy <= y <= sy + sh:
                 slot_i = slot_data["slot"]
                 if self._mode == "save":
                     self.app.save_manager.save(slot_i)

@@ -13,27 +13,27 @@ from pyglet.window import key, mouse
 from pyglet.graphics import Batch, Group
 from pyglet.text import Label
 
-from .constants import (
+from .core.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, FONT_FAMILIES,
     COLOR_BG_DARK,
 )
-from .config import GameConfig
-from .variable import VariableBank
-from .audio import AudioEngine
-from .dialogue import DialogueSystem
-from .choice import ChoiceSystem
-from .character import CharacterManager
-from .effects import EffectSystem
-from .scene_manager import SceneManager
-from .background_manager import BackgroundManager
-from .save_manager import SaveManager
-from .history_manager import HistoryManager
-from .ui_manager import UIManager, ORDER_TOOLTIP
-from .settings_panel import SettingsPanel
-from .save_load_panel import SaveLoadPanel
-from .history_panel import HistoryPanel
-from .main_menu import MainMenu
-from .logger import Logger
+from .core.config import GameConfig
+from .core.variable import VariableBank
+from .audio.audio import AudioEngine
+from .ui.dialogue import DialogueSystem
+from .ui.choice import ChoiceSystem
+from .render.character import CharacterManager
+from .render.effects import EffectSystem
+from .scene.scene_manager import SceneManager
+from .render.background_manager import BackgroundManager
+from .data.save_manager import SaveManager
+from .core.history_manager import HistoryManager
+from .ui.ui_manager import UIManager, ORDER_TOOLTIP
+from .ui.settings_panel import SettingsPanel
+from .ui.save_load_panel import SaveLoadPanel
+from .ui.history_panel import HistoryPanel
+from .ui.main_menu import MainMenu
+from .core.logger import Logger
 
 log = Logger("App")
 
@@ -49,9 +49,11 @@ class AVGApplication(pyglet.window.Window):
         # 配置先加载
         self.game_config = GameConfig().load()
         cfg = self.game_config.display
+        log.debug("配置加载完成: %dx%d mode=%s", cfg.width, cfg.height, cfg.window_mode)
 
         super().__init__(width, height, caption=title, resizable=True)
         self.set_minimum_size(640, 360)
+        log.debug("窗口已创建: %dx%d", width, height)
 
         # 鼠标 / 时间跟踪
         self._mouse_x: int = 0
@@ -60,7 +62,6 @@ class AVGApplication(pyglet.window.Window):
 
         # FPS
         self._show_fps = cfg.show_fps
-        self._fps_display = pyglet.window.FPSDisplay(self)
         self._fps_count = 0
         self._fps_timer = 0.0
         self._fps_label: Optional[Label] = None
@@ -94,6 +95,7 @@ class AVGApplication(pyglet.window.Window):
         self.history_manager = HistoryManager()
         self.history_manager.set_on_jump(self._on_history_jump)
         self.ui_manager = UIManager(self)
+        log.debug("子系统初始化完成")
 
         # 设置面板
         self._settings_panel = SettingsPanel(self)
@@ -123,17 +125,21 @@ class AVGApplication(pyglet.window.Window):
 
     def load_script(self, json_path: str) -> None:
         """加载 JSON 剧本。"""
+        log.debug("加载剧本: %s", json_path)
         self.scene_manager.load_script(json_path)
         self.set_caption(self.scene_manager.title)
+        log.debug("剧本 '%s' (%d 场景) 加载完成", self.scene_manager.title, len(self.scene_manager.scenes_dict))
 
     def start_game(self) -> None:
         """启动游戏：跳转到第一个场景（从主菜单调用）。"""
         self._is_in_main_menu = False
+        log.debug("开始游戏")
         self.scene_manager.start_first_scene()
 
     def show_main_menu(self) -> None:
         """显示主菜单。"""
         self._is_in_main_menu = True
+        log.debug("显示主菜单")
         self._main_menu.show()
 
     def _is_main_menu_visible(self) -> bool:
@@ -144,6 +150,7 @@ class AVGApplication(pyglet.window.Window):
     def _toggle_auto_mode(self) -> None:
         self._auto_mode = not self._auto_mode
         self._auto_timer = 0.0
+        log.debug("自动模式: %s", "ON" if self._auto_mode else "OFF")
         if self._auto_mode and self.dialogue_system:
             self.ui_manager.notification.show(
                 "自动模式 " + ("ON" if self._auto_mode else "OFF"), 1.0)
@@ -186,7 +193,10 @@ class AVGApplication(pyglet.window.Window):
     def _replay_voice(self) -> None:
         """重播当前对话的语音。"""
         sm = self.scene_manager
-        scene = sm.scenes_dict.get(sm.current_scene_id)
+        scene_id = sm.current_scene_id
+        if scene_id is None:
+            return
+        scene = sm.scenes_dict.get(scene_id)
         if scene:
             dialogues = scene.get("dialogue", [])
             if sm.dialogue_index < len(dialogues):
@@ -288,6 +298,11 @@ class AVGApplication(pyglet.window.Window):
                     else:
                         self.dialogue_system.advance()
 
+        # if __debug__:
+        #     import random
+        #     if random.randint(0, 100) == 50:
+        #         raise RuntimeError()
+
     def on_resize(self, width: int, height: int) -> None:
         """窗口缩放事件。"""
         super().on_resize(width, height)
@@ -299,6 +314,7 @@ class AVGApplication(pyglet.window.Window):
         """鼠标点击处理。"""
         self._mouse_x = x
         self._mouse_y = y
+        log.debug("鼠标点击: (%d, %d) button=%d", x, y, button)
 
         if button != mouse.LEFT:
             return
@@ -361,6 +377,7 @@ class AVGApplication(pyglet.window.Window):
         - Ctrl: 快进
         - F11: 全屏切换
         """
+        log.debug("按键: symbol=%d mod=%d", symbol, modifiers)
         # 面板打开时的快捷键
         if self.ui_manager.is_any_panel_open():
             if symbol == key.ESCAPE:
@@ -408,6 +425,7 @@ class AVGApplication(pyglet.window.Window):
 
     def on_close(self) -> None:
         """窗口关闭——保存配置。"""
+        log.debug("窗口关闭")
         # 保存窗口位置
         try:
             wx, wy = self.get_location()
@@ -444,9 +462,9 @@ class AVGApplication(pyglet.window.Window):
         self.game_config.display.window_mode = mode
         self.game_config.save()
 
-    def _set_style(self, style) -> None:
-        """安全设置窗口样式。"""
-        try:
-            self.style = style
-        except Exception:
-            pass
+    def _set_style(self, style: str | None) -> None:
+        """设置窗口样式（仅存储，borderless 模式需重启生效）。
+
+        pyglet 的 style 是只读 property，窗口创建后无法更改。
+        """
+        self._style = style

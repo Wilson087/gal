@@ -4,18 +4,26 @@
 渲染选项分支列表，支持条件过滤、鼠标悬停高亮和点击处理。
 """
 
-from typing import Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Batch, Group
 from pyglet.text import Label
 
-from .constants import (
+from ..core.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
     COLOR_CHOICE_BG, COLOR_CHOICE_HOVER, COLOR_CHOICE_TEXT,
     FONT_FAMILIES, FONT_SIZE_CHOICE,
     DIALOGUE_FRAME_HEIGHT,
 )
+from ..core.logger import Logger
+
+log = Logger("Choice")
 
 
 class ChoiceSystem:
@@ -44,9 +52,11 @@ class ChoiceSystem:
 
         if not valid:
             # 无可用选项，直接结束场景
+            log.debug("无可用选项（条件过滤后为空），结束场景")
             self.app.scene_manager.end_scene()
             return
 
+        log.debug("显示选项: %d 个", len(valid))
         self._active = True
         self._choices = valid
         self._hover_index = -1
@@ -93,6 +103,7 @@ class ChoiceSystem:
             rx, ry, rw, rh = item["rect_bounds"]
             if rx <= x <= rx + rw and ry <= y <= ry + rh:
                 choice = item["choice"]
+                log.debug("选项点击: text=%r next=%s", choice.get("text", "")[:30], choice.get("next_scene"))
                 # 设置变量
                 set_var = choice.get("set_var", {})
                 if set_var:
@@ -145,7 +156,7 @@ class ChoiceSystem:
 
     def get_branch_info(self) -> str:
         """返回当前分支变量信息（用于工具栏"分支"按钮显示）。"""
-        vars = self.app.variable_bank.variables
-        if not vars:
+        variables = self.app.variable_bank.variables
+        if not variables:
             return "无分支变量"
-        return " | ".join(f"{k}={v}" for k, v in vars.items())
+        return " | ".join(f"{k}={v}" for k, v in variables.items())

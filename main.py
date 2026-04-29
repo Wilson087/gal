@@ -6,7 +6,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from engine.logger import init as log_init
+from engine.core.logger import init as log_init
 from engine.app import AVGApplication
 
 

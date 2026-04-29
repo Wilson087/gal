@@ -4,14 +4,19 @@
 管理场景跳转、对话推进、立绘/音频/变量集成。
 """
 
-from typing import Any, Optional
+from __future__ import annotations
 
-from .constants import (
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
+
+from ..core.constants import (
     CHARACTER_NAME_COLORS, DEFAULT_TRANSITION,
 )
-from .script_loader import load_from_file, validate_script
-from .rich_text import strip_rich_tags
-from .logger import Logger
+from ..core.script_loader import load_from_file, validate_script
+from ..core.rich_text import strip_rich_tags
+from ..core.logger import Logger
 
 log = Logger("Scene")
 
@@ -32,9 +37,6 @@ class SceneSnapshot:
         self.variables = variables or {}
         self.filter_name = filter_name
         self.weather = weather
-
-
-log = Logger("Scene")
 
 
 class SceneManager:
@@ -162,11 +164,16 @@ class SceneManager:
 
         # 背景切换（带转场）
         bg_id = scene.get("background", "")
+        log.debug("场景 '%s': background=%s bgm=%s weather=%s",
+                  scene_id, bg_id, scene.get("bgm"), scene.get("weather"))
         self.app.background_manager.set_background(bg_id, transition, _after_bg)
 
     def _show_current_dialogue(self) -> None:
         """根据当前 dialogue_index 显示对白或选项。"""
-        scene = self.scenes_dict.get(self.current_scene_id)
+        sid = self.current_scene_id
+        if sid is None:
+            return
+        scene = self.scenes_dict.get(sid)
         if scene is None:
             return
 
@@ -216,7 +223,7 @@ class SceneManager:
             self.app.dialogue_system.show_dialogue(text, speaker, entry)
 
             # 记录到历史
-            if hasattr(self.app, 'history_manager'):
+            if hasattr(self.app, 'history_manager') and self.current_scene_id:
                 self.app.history_manager.record(speaker, text,
                                                 self.current_scene_id,
                                                 self.dialogue_index)
@@ -232,7 +239,10 @@ class SceneManager:
 
     def _start_speaking_for(self, speaker: str) -> None:
         """根据说话者启动对应立绘的说话动画。"""
-        scene = self.scenes_dict.get(self.current_scene_id)
+        sid = self.current_scene_id
+        if sid is None:
+            return
+        scene = self.scenes_dict.get(sid)
         if not scene:
             return
 
@@ -313,6 +323,7 @@ class SceneManager:
             return
         if self.current_scene_id is None:
             return
+        log.debug("推进对话: %s[%d]", self.current_scene_id, self.dialogue_index + 1)
 
         # 记录当前状态的完整快照（用于"后退"功能）
         # 回退锁定期间不记录（防止 go_back → next 死循环）
@@ -335,6 +346,7 @@ class SceneManager:
             return False
 
         snap = self._snapshot_stack.pop()
+        log.debug("回退到: %s[%d]", snap.scene_id, snap.dialogue_index)
         self._history_locked = True
         self._restore_snapshot(snap)
         return True

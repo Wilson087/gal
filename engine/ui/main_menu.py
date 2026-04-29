@@ -4,9 +4,14 @@
 游戏初始界面，包含新游戏/继续/载入/剧本选择/设置/退出。
 """
 
+from __future__ import annotations
+
 import json
 import os
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Group, Batch
@@ -14,8 +19,8 @@ from pyglet.shapes import RoundedRectangle, Rectangle
 from pyglet.text import Label
 from pyglet.window import mouse
 
-from .constants import FONT_FAMILIES
-from .logger import Logger
+from ..core.constants import FONT_FAMILIES
+from ..core.logger import Logger
 
 log = Logger("Menu")
 
@@ -319,7 +324,7 @@ class MainMenu:
 
     def _list_scripts(self) -> list[dict]:
         """扫描 scripts/ 目录下的所有 JSON 剧本文件。"""
-        scripts = []
+        scripts: list[dict] = []
         if not os.path.isdir("scripts"):
             return scripts
         for f in sorted(os.listdir("scripts")):

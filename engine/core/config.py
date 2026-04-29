@@ -6,8 +6,13 @@
 
 import json
 import os
-from dataclasses import dataclass, field, asdict
+import typing
+from dataclasses import dataclass, field, asdict, fields
 from typing import Optional
+
+from .logger import Logger
+
+log = Logger("Config")
 
 _CONFIG_FILE = "config.json"
 
@@ -75,14 +80,17 @@ class GameConfig:
     def load(self) -> "GameConfig":
         """从 config.json 加载配置，文件不存在则返回默认。"""
         if not os.path.exists(_CONFIG_FILE):
+            log.debug("配置文件不存在，使用默认配置")
             self._loaded = True
             return self
         try:
             with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self._merge(data)
+            log.debug("配置加载完成")
         except (json.JSONDecodeError, KeyError, TypeError):
-            pass  # 损坏则使用默认
+            log.debug("配置文件损坏，使用默认配置")
+            pass
         self._loaded = True
         return self
 
@@ -100,6 +108,7 @@ class GameConfig:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             os.replace(tmp, _CONFIG_FILE)
+            log.debug("配置已保存")
         except OSError:
             pass
 
@@ -115,20 +124,32 @@ class GameConfig:
             raw = data.get(section_name, {})
             if not isinstance(raw, dict):
                 continue
+
+            # 获取 dataclass 字段的声明类型注释
+            type_hints = typing.get_type_hints(section_obj.__class__)
+
             for key, value in raw.items():
-                if hasattr(section_obj, key):
-                    # 类型转换
-                    expected_type = type(getattr(section_obj, key))
-                    if expected_type == float and isinstance(value, (int, float)):
-                        setattr(section_obj, key, float(value))
-                    elif expected_type == int and isinstance(value, (int, float)):
-                        setattr(section_obj, key, int(value))
-                    elif expected_type == bool and isinstance(value, bool):
-                        setattr(section_obj, key, value)
-                    elif expected_type == str and isinstance(value, str):
-                        setattr(section_obj, key, value)
-                    elif value is None and expected_type in (type(None), Optional):
-                        setattr(section_obj, key, None)
+                if not hasattr(section_obj, key):
+                    continue
+                if value is None:
+                    setattr(section_obj, key, None)
+                    continue
+
+                declared = type_hints.get(key, type(None))
+                # 解开 Optional[X] → X（取 Union 中非 None 的第一个类型）
+                origin = getattr(declared, "__origin__", None)
+                if origin is typing.Union:
+                    args = declared.__args__
+                    declared = next((a for a in args if a is not type(None)), declared)
+
+                if declared is float and isinstance(value, (int, float)):
+                    setattr(section_obj, key, float(value))
+                elif declared is int and isinstance(value, (int, float)):
+                    setattr(section_obj, key, int(value))
+                elif declared is bool and isinstance(value, bool):
+                    setattr(section_obj, key, value)
+                elif declared is str and isinstance(value, str):
+                    setattr(section_obj, key, value)
 
     @property
     def effective_bgm_volume(self) -> float:

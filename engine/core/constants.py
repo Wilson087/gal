@@ -19,7 +19,7 @@ TEXT_SPEED_MIN = 0.01
 TEXT_SPEED_MAX = 0.2
 
 # ── 角色名标签 ───────────────────────────────────────────────
-CHARACTER_NAME_COLORS = {}
+CHARACTER_NAME_COLORS: dict[str, str] = {}
 DEFAULT_SPEAKER_COLOR = (231, 76, 60, 255)       # e74c3c 红
 DEFAULT_NARRATOR_COLOR = (127, 140, 141, 255)    # 7f8c8d 灰
 

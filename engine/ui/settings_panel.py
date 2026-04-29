@@ -4,8 +4,16 @@
 5 标签页设置面板，所有控件使用 pyglet 原生 API 实现。
 """
 
+from __future__ import annotations
+
 import math
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+# mypy: disable-error-code="func-returns-value"
+# setattr 在 lambda 元组表达式中触发的误报，返回值被故意丢弃
+
+if TYPE_CHECKING:
+    from ..app import AVGApplication
 
 import pyglet
 from pyglet.graphics import Group, Batch
@@ -13,7 +21,7 @@ from pyglet.window import key, mouse
 from pyglet.shapes import RoundedRectangle, Rectangle, Circle, Box
 from pyglet.text import Label
 
-from .constants import FONT_FAMILIES
+from ..core.constants import FONT_FAMILIES
 from .ui_manager import (
     ORDER_PANEL, ORDER_PANEL_BORDER, ORDER_OVERLAY,
     PANEL_BG, PANEL_BORDER, TEXT_NORMAL, TEXT_DIM, TEXT_ACCENT,
@@ -37,7 +45,7 @@ class Slider:
     def __init__(self, x: int, y: int, width: int,
                  min_val: float, max_val: float, value: float,
                  label: str, batch: Batch, group: Group,
-                 on_change: Optional[Callable[[float], None]] = None,
+                 on_change: Optional[Callable[[float], Any]] = None,
                  format_str: str = "{:.0f}%") -> None:
         self._x = x
         self._y = y
@@ -134,7 +142,7 @@ class Toggle:
 
     def __init__(self, x: int, y: int, label: str,
                  state: bool, batch: Batch, group: Group,
-                 on_change: Optional[Callable[[bool], None]] = None) -> None:
+                 on_change: Optional[Callable[[bool], Any]] = None) -> None:
         self._state = state
         self._on_change = on_change
 
@@ -150,10 +158,8 @@ class Toggle:
         self._toggle_x = x + 200
 
     def on_click(self, px: int, py: int) -> bool:
-        if abs(px - (self._toggle_x + 18)) < 30 and abs(py - (self._toggle_x + 18)) < 30:
-            # Simplified hit test
-            if self._toggle_x - 10 <= px <= self._toggle_x + 46 and \
-               self._bg.y - 10 <= py <= self._bg.y + 24:
+        if self._toggle_x - 10 <= px <= self._toggle_x + 46 and \
+           self._bg.y - 10 <= py <= self._bg.y + 24:
                 self._state = not self._state
                 self._thumb.x = self._toggle_x + (18 if self._state else 0)
                 self._bg.color = TEXT_ACCENT[:3] if self._state else (80, 80, 80)
@@ -186,7 +192,7 @@ class ButtonGroup:
     def __init__(self, x: int, y: int,
                  options: list[str], labels: list[str],
                  current_index: int, batch: Batch, group: Group,
-                 callback: Optional[Callable[[int, str], None]] = None) -> None:
+                 callback: Optional[Callable[[int, str], Any]] = None) -> None:
         self._x = x
         self._y = y
         self._options = options

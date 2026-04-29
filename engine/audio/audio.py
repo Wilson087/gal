@@ -8,8 +8,8 @@ import glob
 import os
 import pyglet
 
-from .constants import AUDIO_DIR, BGM_VOLUME_DEFAULT, SFX_VOLUME_DEFAULT, VOICE_VOLUME_DEFAULT
-from .logger import Logger
+from ..core.constants import AUDIO_DIR, BGM_VOLUME_DEFAULT, SFX_VOLUME_DEFAULT, VOICE_VOLUME_DEFAULT
+from ..core.logger import Logger
 
 log = Logger("Audio")
 
@@ -103,6 +103,7 @@ class AudioEngine:
 
     def stop_bgm(self) -> None:
         """停止 BGM。"""
+        log.debug("停止 BGM")
         self.bgm_player.pause()
         self.bgm_player.delete()
         self.bgm_player = pyglet.media.Player()
@@ -117,6 +118,7 @@ class AudioEngine:
         if not path:
             return
         full = self._resolve_path(path)
+        log.debug("播放 SFX: %s -> %s", path, full)
         try:
             source = pyglet.media.load(full)
         except Exception as e:
@@ -138,6 +140,7 @@ class AudioEngine:
         if not path:
             return
         full = self._resolve_path(path)
+        log.debug("播放语音: %s -> %s", path, full)
         try:
             source = pyglet.media.load(full)
         except Exception as e:
@@ -156,6 +159,7 @@ class AudioEngine:
     def update_ducking(self) -> None:
         """检查语音播放状态，恢复 BGM 音量。"""
         if self._bgm_ducking and not self.voice_player.playing:
+            log.debug("BGM 闪避结束，音量恢复 %.2f", self._bgm_full_volume)
             self.bgm_player.volume = self._bgm_full_volume
             self._bgm_ducking = False
 
