@@ -16,7 +16,7 @@ class _Listener:
     """测试用监听器类 —— 持有 bound method 回调。"""
 
     def __init__(self) -> None:
-        self.calls: list[dict] = []
+        self.calls: list[dict[str, object]] = []
 
     def handle(self, **kwargs: object) -> None:
         self.calls.append(kwargs)
@@ -38,7 +38,7 @@ def test_weakref_cleanup() -> None:
 
     # emit 应触发惰性清理
     bus.emit(Event.UPDATE, dt=0.032)
-    assert Event.UPDATE not in bus._listeners  # pyright: ignore[reportPrivateUsage]
+    assert str(Event.UPDATE) not in bus._listeners
 
 
 def test_error_isolation() -> None:
@@ -50,7 +50,7 @@ def test_error_isolation() -> None:
         raise RuntimeError("坏回调故意抛出的异常")
 
     def good_handler(**kwargs: object) -> None:
-        results.append(kwargs.get("msg", ""))
+        results.append(str(kwargs.get("msg", "")))
 
     bus.on(Event.CLICK, bad_handler)
     bus.on(Event.CLICK, good_handler)
