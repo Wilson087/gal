@@ -275,9 +275,23 @@ class SceneManager:
             self.app.character_manager.start_speaking(target_side)
 
     def _char_matches_speaker(self, char_id: str, speaker: str) -> bool:
-        """判断立绘 ID 是否匹配说话者。"""
-        # 简单实现：角色名出现在立绘 ID 中
-        return speaker in char_id or char_id in speaker
+        """判断立绘 ID 是否匹配说话者。
+
+        优先级：精确匹配 → speaker 含于 char_id → 角色名配置匹配。
+        """
+        if not speaker or not char_id:
+            return False
+        s, c = speaker.lower(), char_id.lower()
+        if s == c:
+            return True
+        # speaker 较长的子串匹配（至少 2 字符，避免单字误匹配）
+        if len(s) >= 2 and s in c:
+            return True
+        # 通过 character_colors 反向匹配：char_id 的部分是否为已知角色名
+        for name in CHARACTER_NAME_COLORS:
+            if name.lower() == s:
+                return True
+        return False
 
     def _make_snapshot(self) -> SceneSnapshot:
         """创建当前场景的快照。"""

@@ -33,7 +33,7 @@ from .ui.settings_panel import SettingsPanel
 from .ui.save_load_panel import SaveLoadPanel
 from .ui.history_panel import HistoryPanel
 from .ui.main_menu import MainMenu
-from .core.logger import Logger
+from .core.logger import Logger, _close_file_handle
 
 log = Logger("App")
 
@@ -306,6 +306,8 @@ class AVGApplication(pyglet.window.Window):
         """窗口缩放事件。"""
         super().on_resize(width, height)
         self.background_manager.on_resize(width, height)
+        self.character_manager.on_resize(width, height)
+        self.dialogue_system.on_resize(width, height)
         self.ui_manager.on_resize(width, height)
 
     def on_mouse_press(self, x: int, y: int, button: int,
@@ -435,6 +437,7 @@ class AVGApplication(pyglet.window.Window):
 
         self.game_config.save()
         self.audio_engine.shutdown()
+        _close_file_handle()
         super().on_close()
 
     # ──── 窗口模式切换 ─────────────────────────────────────

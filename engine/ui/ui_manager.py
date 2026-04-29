@@ -26,10 +26,11 @@ log = Logger("UI")
 # ── UI 层级 order ──────────────────────────────────────────
 ORDER_NAV_BAR = 30      # 底部导航栏
 ORDER_NOTIFICATION = 40  # 提示通知
+ORDER_PANEL_OVERLAY = 48 # 面板遮罩（在面板之下、游戏 UI 之上）
 ORDER_PANEL = 50        # 弹出面板
 ORDER_PANEL_BORDER = 51 # 面板边框
 ORDER_TOOLTIP = 70      # 按钮提示文字
-ORDER_OVERLAY = 90      # 全局遮罩
+ORDER_OVERLAY = 90      # 全局遮罩（转场等）
 
 # ── 颜色 ───────────────────────────────────────────────────
 PANEL_BG = (18, 18, 18, 191)        # #121212 BF (75% opacity)
@@ -117,9 +118,10 @@ class Notification:
     HOLD = 1.5
     FADE_OUT = 0.5
 
-    def __init__(self, ui_batch: Batch, group: Group) -> None:
+    def __init__(self, ui_batch: Batch, group: Group, get_window_size=None) -> None:
         self._batch = ui_batch
         self._group = group
+        self._get_window_size = get_window_size or (lambda: (1280, 720))
         self._rect: Optional[RoundedRectangle] = None
         self._label: Optional[Label] = None
         self._timer: float = 0.0
@@ -130,17 +132,20 @@ class Notification:
         """显示一条通知。"""
         self.hide()
         self._total_duration = duration
-        w, h = 250, 40
-        # 通知位置：通过组引用的 app 或默认 1280 宽度居中
-        x = (1280 - w) // 2  # Notification 没有 app 引用，用默认居中
-        y = 360 - h // 2
+        win_w, win_h = self._get_window_size()
+        notify_w, notify_h = 250, 40
+        cx = win_w // 2
+        cy = win_h // 2
 
-        self._rect = RoundedRectangle(x, y, w, h, _RADIUS,
+        x = cx - notify_w // 2
+        y = cy - notify_h // 2
+
+        self._rect = RoundedRectangle(x, y, notify_w, notify_h, _RADIUS,
                                        color=(0, 0, 0, 200),
                                        batch=self._batch, group=self._group)
         self._label = Label(text, font_name=FONT_FAMILIES, font_size=14,
                             color=TEXT_NORMAL,
-                            x=1280 // 2, y=360,
+                            x=cx, y=cy,
                             anchor_x="center", anchor_y="center",
                             batch=self._batch, group=self._group)
         self._timer = 0.0
@@ -207,6 +212,7 @@ class UIManager:
         self._notif_group = Group(order=ORDER_NOTIFICATION)
         self._panel_group = Group(order=ORDER_PANEL)
         self._panel_border_group = Group(order=ORDER_PANEL_BORDER)
+        self._panel_overlay_group = Group(order=ORDER_PANEL_OVERLAY)
         self._overlay_group = Group(order=ORDER_OVERLAY)
 
         # 常驻工具栏
@@ -226,7 +232,9 @@ class UIManager:
         self._panel_elements: list = []  # 面板的所有 UI 元素引用
 
         # 通知
-        self.notification = Notification(self._ui_batch, self._notif_group)
+        self.notification = Notification(
+            self._ui_batch, self._notif_group,
+            get_window_size=lambda: (self.app.width, self.app.height))
 
         # 当前面板引用（由具体面板模块设置）
         self._settings_panel: Any = None
@@ -381,11 +389,15 @@ class UIManager:
         log.debug("显示面板: %s", panel_name)
         self.hide_all_panels()
 
-        # 创建遮罩
+        # 隐藏底层对话 UI
+        if self.app.dialogue_system:
+            self.app.dialogue_system.set_dialogue_visible(False)
+
+        # 创建遮罩（在面板之下，游戏 UI 之上）
         self._overlay = Rectangle(
             0, 0, self.app.width, self.app.height,
             color=(0, 0, 0, 160),
-            batch=self._ui_batch, group=self._overlay_group,
+            batch=self._ui_batch, group=self._panel_overlay_group,
         )
         self._active_panel = panel_name
 
@@ -403,6 +415,9 @@ class UIManager:
             self._overlay.delete()
             self._overlay = None
         self._active_panel = ""
+        # 恢复对话 UI
+        if self.app.dialogue_system:
+            self.app.dialogue_system.set_dialogue_visible(True)
         if self._settings_panel:
             self._settings_panel.hide()
         if self._save_load_panel:

@@ -27,7 +27,8 @@ _RED = "\033[91m"
 _LEVEL_COLORS = {DEBUG: _GRAY, INFO: _WHITE, WARNING: _YELLOW, ERROR: _RED}
 
 _LOG_DIR = "logs"
-_LOG_FILE = None  # 按天延迟创建
+_file_handle = None  # session 级文件句柄，复用避免频繁 open/close
+_file_date: str = ""  # 当前句柄对应的日期，日期变更时自动切换
 
 
 def _get_log_file() -> str:
@@ -35,6 +36,38 @@ def _get_log_file() -> str:
     today = datetime.now().strftime("%Y-%m-%d")
     path = os.path.join(_LOG_DIR, f"gal_{today}.log")
     return path
+
+
+def _get_file_handle():
+    """返回当前日志文件句柄，按天自动切换。"""
+    global _file_handle, _file_date
+    today = datetime.now().strftime("%Y-%m-%d")
+    if _file_handle is not None and _file_date != today:
+        try:
+            _file_handle.close()
+        except OSError:
+            pass
+        _file_handle = None
+    if _file_handle is None:
+        os.makedirs(_LOG_DIR, exist_ok=True)
+        try:
+            _file_handle = open(_get_log_file(), "a", encoding="utf-8")
+        except OSError:
+            return None
+        _file_date = today
+    return _file_handle
+
+
+def _close_file_handle() -> None:
+    """关闭日志文件句柄（引擎 shutdown 时调用）。"""
+    global _file_handle, _file_date
+    if _file_handle is not None:
+        try:
+            _file_handle.close()
+        except OSError:
+            pass
+        _file_handle = None
+        _file_date = ""
 
 
 def _clean_old_logs(days: int = 30) -> None:
@@ -89,10 +122,12 @@ class Logger:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         level_name = _LEVEL_NAMES.get(level, "?")
         line = f"[{timestamp}] [{level_name}] [{self._name}] {text}"
-        os.makedirs(_LOG_DIR, exist_ok=True)
+        f = _get_file_handle()
+        if f is None:
+            return
         try:
-            with open(_get_log_file(), "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            f.write(line + "\n")
+            f.flush()
         except OSError:
             pass
 
@@ -129,12 +164,13 @@ def _global_exception_hook(exc_type, exc_value, exc_tb) -> None:
     tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] [FATAL] [System] 未捕获的异常:\n{tb_text}"
-    os.makedirs(_LOG_DIR, exist_ok=True)
-    try:
-        with open(_get_log_file(), "a", encoding="utf-8") as f:
+    f = _get_file_handle()
+    if f is not None:
+        try:
             f.write(line + "\n")
-    except OSError:
-        pass
+            f.flush()
+        except OSError:
+            pass
     # 终端输出错误摘要
     print(f"\033[91m[{timestamp}] [FATAL] [System] {exc_type.__name__}: {exc_value}\033[0m")
     # 调用原始钩子

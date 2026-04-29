@@ -102,11 +102,23 @@ class AudioEngine:
                 self._path_cache[path] = self._audio_index[base]
                 return self._path_cache[path]
 
-            # 前缀模糊匹配
+            # 大小写不敏感匹配
+            lower_query = name_no_ext.lower()
             for key, full in self._audio_index.items():
-                if key.startswith(name_no_ext) or name_no_ext.startswith(key):
+                if key.lower() == lower_query:
                     self._path_cache[path] = full
                     return full
+
+            # 前缀匹配：仅当查询 ≥ 3 字符且键以查询开头
+            if len(name_no_ext) >= 3:
+                for key, full in self._audio_index.items():
+                    key_lower = key.lower()
+                    if key_lower.startswith(lower_query):
+                        # 确保匹配到自然边界（下划线之后或开头）
+                        remainder = key_lower[len(lower_query):]
+                        if not remainder or remainder.startswith("_") or remainder.startswith("."):
+                            self._path_cache[path] = full
+                            return full
 
         return dir_path
 
@@ -137,6 +149,7 @@ class AudioEngine:
         self.bgm_player.delete()
         self.bgm_player = pyglet.media.Player()
         self.bgm_player.volume = self._bgm_volume
+        self._bgm_ducking = False
 
     def play_sfx(self, path: str) -> None:
         """播放一次性 SFX。

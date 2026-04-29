@@ -9,9 +9,6 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-# mypy: disable-error-code="func-returns-value"
-# setattr 在 lambda 元组表达式中触发的误报，返回值被故意丢弃
-
 if TYPE_CHECKING:
     from ..app import AVGApplication
 
@@ -347,7 +344,7 @@ class SettingsPanel:
         current = modes.index(cfg.window_mode) if cfg.window_mode in modes else 0
         group = ButtonGroup(self._px + 120, cy, modes, mode_labels, current,
                             self._batch, self._panel_group,
-                            callback=lambda i, v: (
+                            callback=lambda i, v: (  # type: ignore[func-returns-value]
                                 setattr(cfg, 'window_mode', v),
                                 app.set_window_mode(v) if hasattr(app, 'set_window_mode') else None))
         self._controls.append(group)
@@ -361,7 +358,7 @@ class SettingsPanel:
         current_fit = fit_modes.index(cfg.bg_fit_mode) if cfg.bg_fit_mode in fit_modes else 0
         group2 = ButtonGroup(self._px + 120, cy, fit_modes, fit_labels, current_fit,
                              self._batch, self._panel_group,
-                             callback=lambda i, v: (
+                             callback=lambda i, v: (  # type: ignore[func-returns-value]
                                  setattr(cfg, 'bg_fit_mode', v),
                                  bgm.set_fit_mode(v)))
         self._controls.append(group2)
@@ -379,7 +376,7 @@ class SettingsPanel:
         # 显示 FPS
         toggle = Toggle(self._px + 30, cy, "显示 FPS",
                         cfg.show_fps, self._batch, self._panel_group,
-                        on_change=lambda s: (
+                        on_change=lambda s: (  # type: ignore[func-returns-value]
                             setattr(cfg, 'show_fps', s),
                             setattr(app, '_show_fps', s)))
         self._controls.append(toggle)
@@ -395,18 +392,18 @@ class SettingsPanel:
         gc = app.game_config
         volumes = [
             ("主音量", cfg.master_volume, 0.0, 1.0,
-             lambda v: (setattr(cfg, 'master_volume', v),
+             lambda v: (setattr(cfg, 'master_volume', v),  # type: ignore[func-returns-value]
                         setattr(ae, 'bgm_volume', gc.effective_bgm_volume),
                         setattr(ae, 'sfx_volume', gc.effective_sfx_volume),
                         setattr(ae, 'voice_volume', gc.effective_voice_volume))),
             ("BGM", cfg.bgm_volume, 0.0, 1.0,
-             lambda v: (setattr(cfg, 'bgm_volume', v),
+             lambda v: (setattr(cfg, 'bgm_volume', v),  # type: ignore[func-returns-value]
                         setattr(ae, 'bgm_volume', gc.effective_bgm_volume))),
             ("音效", cfg.sfx_volume, 0.0, 1.0,
-             lambda v: (setattr(cfg, 'sfx_volume', v),
+             lambda v: (setattr(cfg, 'sfx_volume', v),  # type: ignore[func-returns-value]
                         setattr(ae, 'sfx_volume', gc.effective_sfx_volume))),
             ("语音", cfg.voice_volume, 0.0, 1.0,
-             lambda v: (setattr(cfg, 'voice_volume', v),
+             lambda v: (setattr(cfg, 'voice_volume', v),  # type: ignore[func-returns-value]
                         setattr(ae, 'voice_volume', gc.effective_voice_volume))),
         ]
         for name, val, vmin, vmax, cb in volumes:
@@ -428,7 +425,7 @@ class SettingsPanel:
         speed_slider = Slider(self._px + 80, cy, 300, 0.01, 0.2, cfg.text_speed,
                               "文本速度", self._batch, self._panel_group,
                               format_str="{:.2f}s",
-                              on_change=lambda v: (
+                              on_change=lambda v: (  # type: ignore[func-returns-value]
                                   setattr(cfg, 'text_speed', v),
                                   setattr(app.dialogue_system, '_char_interval', v)))
         self._controls.append(speed_slider)

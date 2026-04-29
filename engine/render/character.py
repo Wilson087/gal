@@ -17,7 +17,7 @@ import pyglet
 from pyglet.graphics import Batch, Group
 
 from ..core.constants import (
-    IMAGES_DIR, WINDOW_WIDTH, WINDOW_HEIGHT,
+    IMAGES_DIR,
     CHAR_X_LEFT_RATIO, CHAR_X_RIGHT_RATIO, CHAR_Y_BOTTOM_MARGIN,
     CHAR_FADE_DURATION, CHAR_SPEAK_FLOAT_AMOUNT,
     CHAR_SPEAK_BOUNCE_STEPS, CHAR_ANIMATION_INTERVAL,
@@ -168,7 +168,7 @@ class CharacterManager:
         group = self._left_group if side == "left" else self._right_group
         spr = CharacterSprite(char_id, self.app.main_batch, group)
 
-        x = int(WINDOW_WIDTH * CHAR_X_LEFT_RATIO if side == "left" else WINDOW_WIDTH * CHAR_X_RIGHT_RATIO)
+        x = int(self.app.width * CHAR_X_LEFT_RATIO if side == "left" else self.app.width * CHAR_X_RIGHT_RATIO)
         y = CHAR_Y_BOTTOM_MARGIN
         spr.set_position(x, y)
         spr.start_fade_in()
@@ -214,6 +214,15 @@ class CharacterManager:
                 if spr:
                     spr.set_speak_offset(offset)
                 self._speak_step += 1
+
+    def on_resize(self, width: int, height: int) -> None:
+        """窗口缩放时重新计算立绘位置。"""
+        if self.left:
+            x = int(width * CHAR_X_LEFT_RATIO)
+            self.left.set_position(x, CHAR_Y_BOTTOM_MARGIN)
+        if self.right:
+            x = int(width * CHAR_X_RIGHT_RATIO)
+            self.right.set_position(x, CHAR_Y_BOTTOM_MARGIN)
 
     def clear(self) -> None:
         """清除所有立绘。"""

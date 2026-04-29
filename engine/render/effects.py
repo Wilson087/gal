@@ -17,7 +17,6 @@ import pyglet
 from pyglet.graphics import Batch, Group
 
 from ..core.constants import (
-    WINDOW_WIDTH, WINDOW_HEIGHT,
     TRANSITION_DURATION, TRANSITION_CROSSFADE,
     TRANSITION_SLIDE_LEFT, TRANSITION_SLIDE_RIGHT,
     TRANSITION_BLINDS, TRANSITION_RIPPLE, TRANSITION_FLASH, TRANSITION_NONE,
@@ -89,9 +88,10 @@ class EffectSystem:
         }
 
         # 创建 overlay sprite（全屏白色覆盖）
+        w, h = self.app.width, self.app.height
         overlay_img = pyglet.image.SolidColorImagePattern(
             (255, 255, 255, 255)
-        ).create_image(WINDOW_WIDTH, WINDOW_HEIGHT)
+        ).create_image(w, h)
         self._transition_overlay = pyglet.sprite.Sprite(
             overlay_img, batch=self.app.ui_batch, group=self._overlay_group,
         )
@@ -104,13 +104,14 @@ class EffectSystem:
     def _init_strips(self, transition_type: str) -> None:
         """为滑动/百叶窗创建 strip sprite 列表。"""
         assert self._transition is not None
+        w, h = self.app.width, self.app.height
         strip_count = 20
-        strip_w = WINDOW_WIDTH / strip_count
+        strip_w = w / strip_count
         self._transition["strips"] = []
         for i in range(strip_count):
             img = pyglet.image.SolidColorImagePattern(
                 (255, 255, 255, 255)
-            ).create_image(int(strip_w + 1), WINDOW_HEIGHT)
+            ).create_image(int(strip_w + 1), h)
             spr = pyglet.sprite.Sprite(
                 img, batch=self.app.ui_batch, group=self._overlay_group,
             )
@@ -398,9 +399,10 @@ class EffectSystem:
             return
 
         alpha = min(255, max(0, int(255 * intensity)))
+        w, h = self.app.width, self.app.height
         img = pyglet.image.SolidColorImagePattern(
             (*rgb, alpha)
-        ).create_image(WINDOW_WIDTH, WINDOW_HEIGHT)
+        ).create_image(w, h)
         self._filter_sprite = pyglet.sprite.Sprite(
             img, batch=self.app.ui_batch, group=self._filter_group,
         )
@@ -418,13 +420,14 @@ class EffectSystem:
     def start_snow(self, count: int = 60) -> None:
         """启动飘雪效果。"""
         log.debug("启动飘雪: count=%d", count)
+        self.stop_particles()
         self._particle_type = "snow"
-        self._particles = []
+        w, h = self.app.width, self.app.height
         batch = self.app.ui_batch
         group = self._overlay_group
         for _ in range(count):
-            x = random.randint(0, WINDOW_WIDTH)
-            y = random.randint(0, WINDOW_HEIGHT)
+            x = random.randint(0, w)
+            y = random.randint(0, h)
             size = random.randint(2, 5)
             shape = pyglet.shapes.Circle(
                 x, y, size, color=(255, 255, 255), batch=batch, group=group)
@@ -440,13 +443,14 @@ class EffectSystem:
     def start_rain(self, count: int = 80) -> None:
         """启动下雨效果。"""
         log.debug("启动下雨: count=%d", count)
+        self.stop_particles()
         self._particle_type = "rain"
-        self._particles = []
+        w, h = self.app.width, self.app.height
         batch = self.app.ui_batch
         group = self._overlay_group
         for _ in range(count):
-            x = random.randint(0, WINDOW_WIDTH)
-            y = random.randint(0, WINDOW_HEIGHT)
+            x = random.randint(0, w)
+            y = random.randint(0, h)
             shape = pyglet.shapes.Line(
                 x, y, x, y, color=(180, 200, 220), batch=batch, group=group)
             self._particles.append({
@@ -469,6 +473,7 @@ class EffectSystem:
 
     def _update_particles(self, dt: float) -> None:
         """更新粒子位置。"""
+        w, h = self.app.width, self.app.height
         for p in self._particles:
             shape = p["shape"]
             if self._particle_type == "snow":
@@ -476,16 +481,16 @@ class EffectSystem:
                 p["y"] -= p["speed_y"] * dt * 60
                 p["phase"] += 0.05
                 if p["y"] < -10:
-                    p["y"] = WINDOW_HEIGHT + 10
-                    p["x"] = random.randint(0, WINDOW_WIDTH)
+                    p["y"] = h + 10
+                    p["x"] = random.randint(0, w)
                 shape.x = p["x"]
                 shape.y = p["y"]
             elif self._particle_type == "rain":
                 p["x"] += p["speed_x"] * dt * 60
                 p["y"] -= p["speed_y"] * dt * 60
                 if p["y"] < -20:
-                    p["y"] = WINDOW_HEIGHT + 20
-                    p["x"] = random.randint(0, WINDOW_WIDTH)
+                    p["y"] = h + 20
+                    p["x"] = random.randint(0, w)
                 shape.x = p["x"]
                 shape.y = p["y"]
                 shape.x2 = p["x"] + p["speed_x"] * 2

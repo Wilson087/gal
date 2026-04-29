@@ -2,16 +2,15 @@
 存档系统模块
 ============
 100 槽位存档系统，支持截图缩略图、快存/快读、JSON 持久化。
+截图存为独立 PNG 文件，JSON 仅存文件名引用，避免 base64 膨胀。
 """
 
 from __future__ import annotations
 
-import base64
-import io
 import json
 import os
 import time
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from ..app import AVGApplication
@@ -25,6 +24,7 @@ log = Logger("Save")
 
 _SAVE_DIR = "saves"
 _SAVE_TEMPLATE = "save_{:02d}.json"
+_THUMB_TEMPLATE = "save_{:02d}_thumb.png"
 _QUICK_SLOT = 0
 
 
@@ -66,13 +66,15 @@ class SaveManager:
         return self._load_slot(slot_index)
 
     def delete_slot(self, slot_index: int) -> None:
-        """删除指定槽位的存档。"""
-        path = self._slot_path(slot_index)
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-        except OSError:
-            pass
+        """删除指定槽位的存档和缩略图。"""
+        json_path = self._slot_path(slot_index)
+        thumb_path = self._thumb_path(slot_index)
+        for p in (json_path, thumb_path):
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except OSError:
+                pass
 
     def get_slot_info(self, slot_index: int) -> Optional[dict]:
         """获取槽位元数据。
@@ -85,7 +87,8 @@ class SaveManager:
             - game_title: 游戏标题
             - dialogue_index: 对话索引
             - variables: 变量快照
-            - screenshot_base64: 缩略图 base64（小尺寸）
+            - screenshot_path: 缩略图 PNG 路径（旧版存档使用 screenshot_base64）
+            - screenshot_base64: 旧版存档的 base64 截图（兼容）
         """
         path = self._slot_path(slot_index)
         if not os.path.exists(path):
@@ -93,15 +96,22 @@ class SaveManager:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return {
+            info = {
                 "timestamp": data.get("timestamp", ""),
                 "scene_id": data.get("scene_id", ""),
                 "chapter_title": data.get("chapter_title", ""),
                 "game_title": data.get("game_title", ""),
                 "dialogue_index": data.get("dialogue_index", 0),
                 "variables": data.get("variables", {}),
-                "screenshot_base64": data.get("screenshot", ""),
             }
+            # 新版：截图存为独立 PNG 文件
+            thumb_path = self._thumb_path(slot_index)
+            if os.path.exists(thumb_path):
+                info["screenshot_path"] = thumb_path
+            # 旧版兼容：base64 截图
+            if data.get("screenshot"):
+                info["screenshot_base64"] = data["screenshot"]
+            return info
         except (json.JSONDecodeError, OSError):
             return None
 
@@ -135,8 +145,9 @@ class SaveManager:
             return False
         log.debug("保存槽位 %d: %s[%d]", slot_index, sm.current_scene_id, sm.dialogue_index)
 
-        # 截图
-        screenshot_b64 = self._capture_screenshot()
+        # 截图存为独立 PNG 文件
+        thumb_path = self._thumb_path(slot_index)
+        self._save_thumb(thumb_path)
 
         # 序列化对话历史
         history_entries = []
@@ -150,7 +161,7 @@ class SaveManager:
                 })
 
         data = {
-            "version": "0.1.0",
+            "version": "0.2.0",
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "scene_id": sm.current_scene_id,
             "dialogue_index": sm.dialogue_index,
@@ -158,7 +169,7 @@ class SaveManager:
             "chapter_title": sm.current_scene_id,
             "game_title": sm.title,
             "history": history_entries,
-            "screenshot": screenshot_b64,
+            "thumb_file": os.path.basename(thumb_path),
         }
 
         # 保存到临时文件后重命名（防崩溃）
@@ -190,25 +201,20 @@ class SaveManager:
         sm.restore_from_save(data)
         return True
 
-    def _capture_screenshot(self) -> str:
-        """捕获当前画面，base64 编码为 PNG。
-
-        Returns:
-            base64 编码的 PNG 数据，失败时返回空字符串。
-        """
+    def _save_thumb(self, path: str) -> None:
+        """捕获当前画面并保存为 PNG 文件。"""
         try:
             color_buffer = get_buffer_manager().get_color_buffer()
             image = color_buffer.get_image_data()
-            buf = io.BytesIO()
             encoder = PNGImageEncoder()
-            encoder.encode(image, "", buf)
-            png_bytes = buf.getvalue()
-            b64 = base64.b64encode(png_bytes).decode("ascii")
-            log.debug("截图完成: %d bytes (base64)", len(b64))
-            return b64
+            with open(path, "wb") as f:
+                encoder.encode(image, path, f)
+            log.debug("截图已保存: %s", path)
         except Exception as e:
             log.error("截图失败: %s", e)
-            return ""
+
+    def _thumb_path(self, slot_index: int) -> str:
+        return os.path.join(_SAVE_DIR, _THUMB_TEMPLATE.format(slot_index))
 
     def _slot_path(self, slot_index: int) -> str:
         return os.path.join(_SAVE_DIR, _SAVE_TEMPLATE.format(slot_index))

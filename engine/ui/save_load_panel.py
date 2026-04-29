@@ -6,6 +6,7 @@
 
 import base64
 import io
+import os
 from typing import Any, Optional, TYPE_CHECKING
 
 import pyglet
@@ -140,21 +141,28 @@ class SaveLoadPanel:
                               batch=self._batch, group=self._group)
         widgets.append(bg)
 
-        if info and info.get("screenshot_base64"):
+        if info and (info.get("screenshot_path") or info.get("screenshot_base64")):
             # 截图缩略图区域
             try:
-                png_bytes = base64.b64decode(info["screenshot_base64"])
-                img = pyglet.image.load("", file=io.BytesIO(png_bytes))
-                thumb = pyglet.sprite.Sprite(
-                    img, x=x + 2, y=y + info_h,
-                    batch=self._batch, group=self._group)
-                # 缩放到槽位宽度
-                scale_w = (_SLOT_W - 4) / img.width
-                scale_h = (thumb_h - 4) / img.height
-                thumb.scale = min(scale_w, scale_h)
-                thumb.x = x + _SLOT_W // 2
-                thumb.y = y + info_h + thumb_h // 2
-                widgets.append(thumb)
+                img = None
+                # 优先从 PNG 文件加载（新版存档）
+                thumb_file = info.get("screenshot_path")
+                if thumb_file and os.path.exists(thumb_file):
+                    img = pyglet.image.load(thumb_file)
+                # 回退：旧版 base64（兼容）
+                elif info.get("screenshot_base64"):
+                    png_bytes = base64.b64decode(info["screenshot_base64"])
+                    img = pyglet.image.load("", file=io.BytesIO(png_bytes))
+                if img:
+                    thumb = pyglet.sprite.Sprite(
+                        img, x=x + 2, y=y + info_h,
+                        batch=self._batch, group=self._group)
+                    scale_w = (_SLOT_W - 4) / img.width
+                    scale_h = (thumb_h - 4) / img.height
+                    thumb.scale = min(scale_w, scale_h)
+                    thumb.x = x + _SLOT_W // 2
+                    thumb.y = y + info_h + thumb_h // 2
+                    widgets.append(thumb)
             except Exception:
                 pass  # 解码失败则跳过截图
 

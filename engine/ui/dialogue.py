@@ -17,7 +17,7 @@ from pyglet.graphics import Batch, Group
 from pyglet.text import Label
 
 from ..core.constants import (
-    WINDOW_WIDTH, WINDOW_HEIGHT, DIALOGUE_FRAME_HEIGHT,
+    DIALOGUE_FRAME_HEIGHT,
     DIALOGUE_PADDING, DIALOGUE_MARGIN_BOTTOM, DIALOGUE_RADIUS, DIALOGUE_MARGIN_H,
     SPEAKER_PILL_HEIGHT, SPEAKER_PILL_OFFSET,
     COLOR_DIALOGUE_BG, COLOR_TEXT_PRIMARY, COLOR_TEXT_SPEAKER, COLOR_TEXT_SHADOW,
@@ -74,19 +74,20 @@ class DialogueSystem:
 
     def _build_ui(self) -> None:
         """构建对话 UI 组件 — 圆角对话框 + 名签药丸 + 文本阴影。"""
+        w = self.app.width
         fh = DIALOGUE_FRAME_HEIGHT
         mh = DIALOGUE_MARGIN_H
         r = DIALOGUE_RADIUS
 
         # 对话框背景 — 圆角矩形，左右12px边距，底部4px间距
         self._bg_rect = pyglet.shapes.RoundedRectangle(
-            mh, DIALOGUE_MARGIN_BOTTOM, WINDOW_WIDTH - mh * 2, fh - DIALOGUE_MARGIN_BOTTOM, r,
+            mh, DIALOGUE_MARGIN_BOTTOM, w - mh * 2, fh - DIALOGUE_MARGIN_BOTTOM, r,
             color=COLOR_DIALOGUE_BG[:3],
             batch=self.ui_batch, group=self._ui_group,
         )
-        # 底部高光线（柚子社标志性设计）
+        # 底部高光线
         self._bg_edge = pyglet.shapes.Line(
-            mh + r, DIALOGUE_MARGIN_BOTTOM, WINDOW_WIDTH - mh - r, DIALOGUE_MARGIN_BOTTOM,
+            mh + r, DIALOGUE_MARGIN_BOTTOM, w - mh - r, DIALOGUE_MARGIN_BOTTOM,
             color=(255, 255, 255, 25),
             batch=self.ui_batch, group=self._ui_group,
         )
@@ -116,10 +117,10 @@ class DialogueSystem:
             batch=self.ui_batch, group=self._ui_group,
         )
 
-        # 文本阴影层（黑色偏移 1px，补偿 pyglet 无原生 text-outline）
+        # 文本阴影层 + 对话文本标签
         text_x = mh + DIALOGUE_PADDING
         text_y = fh - DIALOGUE_PADDING - 12
-        text_w = WINDOW_WIDTH - (mh + DIALOGUE_PADDING) * 2
+        text_w = w - (mh + DIALOGUE_PADDING) * 2
         self._text_shadow = Label(
             "", font_name=FONT_FAMILIES, font_size=FONT_SIZE_DIALOGUE,
             color=COLOR_TEXT_SHADOW,
@@ -129,7 +130,6 @@ class DialogueSystem:
             multiline=True,
             batch=self.ui_batch, group=self._ui_group,
         )
-        # 对话文本标签
         self._text_label = Label(
             "", font_name=FONT_FAMILIES, font_size=FONT_SIZE_DIALOGUE,
             color=COLOR_TEXT_PRIMARY,
@@ -144,12 +144,25 @@ class DialogueSystem:
         self._next_label = Label(
             "▼", font_name=FONT_FAMILIES, font_size=FONT_SIZE_NEXT_INDICATOR,
             color=COLOR_TEXT_PRIMARY,
-            x=WINDOW_WIDTH - mh - DIALOGUE_PADDING, y=DIALOGUE_PADDING + 4,
+            x=w - mh - DIALOGUE_PADDING, y=DIALOGUE_PADDING + 4,
             anchor_x="right", anchor_y="bottom",
             batch=self.ui_batch, group=self._ui_group,
         )
         self._next_label_visible = False
         self._next_label.opacity = 0
+
+    def on_resize(self, width: int, height: int) -> None:
+        """窗口缩放时重新计算对话 UI 布局。"""
+        mh = DIALOGUE_MARGIN_H
+        r = DIALOGUE_RADIUS
+        padding = DIALOGUE_PADDING
+        text_w = width - (mh + padding) * 2
+
+        self._bg_rect.width = width - mh * 2
+        self._bg_edge.x2 = width - mh - r
+        self._text_shadow.width = text_w
+        self._text_label.width = text_w
+        self._next_label.x = width - mh - padding
 
     def show_dialogue(self, text: str, speaker: str, entry: Optional[dict] = None) -> None:
         """显示一句对话。
@@ -417,10 +430,14 @@ class DialogueSystem:
         return COLOR_TEXT_PRIMARY
 
     def set_dialogue_visible(self, visible: bool) -> None:
-        """显示/隐藏对话 UI。"""
+        """显示/隐藏对话 UI 全部元素。"""
         self._bg_rect.visible = visible
-        self._speaker_label.visible = visible
+        self._bg_edge.visible = visible
+        self._speaker_bg.visible = visible
+        self._speaker_bar.visible = visible
+        self._speaker_label.visible = visible and bool(self._speaker_label.text)
         self._text_label.visible = visible
+        self._text_shadow.visible = visible
         self._next_label.visible = visible and self._next_label_visible
 
     def show_end_marker(self) -> None:

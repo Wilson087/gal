@@ -2,6 +2,7 @@
 历史记录面板模块
 ================
 滚动列表显示全部对话历史，支持鼠标滚轮和点击回溯。
+Label 预分配复用，滚动时仅更新文本，避免频繁创建/销毁。
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from ..core.constants import FONT_FAMILIES
 from .ui_manager import (
     ORDER_PANEL, ORDER_PANEL_BORDER,
     PANEL_BG, PANEL_BORDER, TEXT_NORMAL, TEXT_DIM, TEXT_ACCENT,
-    make_label, hit_test,
 )
 
 _PANEL_W = 700
@@ -38,14 +38,17 @@ class HistoryPanel:
         self._border_group = Group(order=ORDER_PANEL_BORDER)
         self._visible = False
         self._scroll_offset = 0
-        self._elements: list = []
+
+        # 预分配的 Label 槽位，show 时创建，滚动时复用
+        self._speaker_labels: list[Label] = []
+        self._text_labels: list[Label] = []
         self._panel_bg: Optional[RoundedRectangle] = None
         self._panel_border: Optional[Rectangle] = None
+        self._title_label: Optional[Label] = None
 
     def show(self) -> None:
         self._visible = True
         self._scroll_offset = 0
-        self._elements = []
 
         px = (self.app.width - _PANEL_W) // 2
         py = (self.app.height - _PANEL_H) // 2
@@ -57,49 +60,73 @@ class HistoryPanel:
                                        color=PANEL_BORDER[:3],
                                        batch=self._batch, group=self._border_group)
 
-        # 标题
-        title = Label("对话历史", font_name=FONT_FAMILIES, font_size=16,
-                      color=TEXT_NORMAL, weight="bold",
-                      x=px + _PANEL_W // 2, y=py + _PANEL_H - 30,
-                      anchor_x="center", anchor_y="center",
-                      batch=self._batch, group=self._group)
-        self._elements.append(title)
+        self._title_label = Label("对话历史", font_name=FONT_FAMILIES, font_size=16,
+                                  color=TEXT_NORMAL, weight="bold",
+                                  x=px + _PANEL_W // 2, y=py + _PANEL_H - 30,
+                                  anchor_x="center", anchor_y="center",
+                                  batch=self._batch, group=self._group)
 
-        self._build_list()
+        self._build_slots()
+        self._update_slots()
 
-    def _build_list(self) -> None:
-        """构建历史条目列表。"""
+    def _build_slots(self) -> None:
+        """预分配 VISIBLE_LINES 组的 Speaker + Text Label。"""
+        for lbl in self._speaker_labels + self._text_labels:
+            lbl.delete()
+        self._speaker_labels.clear()
+        self._text_labels.clear()
+
         px = (self.app.width - _PANEL_W) // 2
         py = (self.app.height - _PANEL_H) // 2
+        line_top = py + _PANEL_H - 55
+
+        for i in range(_VISIBLE_LINES):
+            y = line_top - i * _LINE_H
+            spk = Label("", font_name=FONT_FAMILIES, font_size=11,
+                        color=TEXT_NORMAL,
+                        x=px + 20, y=y, anchor_x="left", anchor_y="center",
+                        width=80, multiline=False,
+                        batch=self._batch, group=self._group)
+            txt = Label("", font_name=FONT_FAMILIES, font_size=11,
+                        color=TEXT_NORMAL,
+                        x=px + 110, y=y, anchor_x="left", anchor_y="center",
+                        width=_PANEL_W - 130, multiline=False,
+                        batch=self._batch, group=self._group)
+            self._speaker_labels.append(spk)
+            self._text_labels.append(txt)
+
+    def _update_slots(self) -> None:
+        """用当前滚动偏移更新所有 Label 文本。"""
         entries = self.app.history_manager.get_entries()
         total = len(entries)
         start_idx = max(0, total - _VISIBLE_LINES - self._scroll_offset)
-        end_idx = max(0, total - self._scroll_offset)
 
+        px = (self.app.width - _PANEL_W) // 2
+        py = (self.app.height - _PANEL_H) // 2
         line_top = py + _PANEL_H - 55
-        for i in range(start_idx, end_idx):
-            if i >= total:
-                break
-            entry = entries[i]
-            y = line_top - (i - start_idx) * _LINE_H
-            if y < py + 10:
-                break
 
-            speaker = entry.speaker if entry.speaker else "（旁白）"
-            sc = TEXT_ACCENT if entry.speaker else TEXT_DIM
+        for i in range(_VISIBLE_LINES):
+            idx = start_idx + i
+            spk_lbl = self._speaker_labels[i]
+            txt_lbl = self._text_labels[i]
+            y = line_top - i * _LINE_H
 
-            self._elements.append(
-                Label(speaker, font_name=FONT_FAMILIES, font_size=11,
-                      color=sc, weight="bold" if entry.speaker else "normal",
-                      x=px + 20, y=y, anchor_x="left", anchor_y="center",
-                      width=80, multiline=False,
-                      batch=self._batch, group=self._group))
-            self._elements.append(
-                Label(entry.text, font_name=FONT_FAMILIES, font_size=11,
-                      color=TEXT_NORMAL,
-                      x=px + 110, y=y, anchor_x="left", anchor_y="center",
-                      width=_PANEL_W - 130, multiline=False,
-                      batch=self._batch, group=self._group))
+            if 0 <= idx < total:
+                entry = entries[idx]
+                speaker = entry.speaker if entry.speaker else "（旁白）"
+                spk_lbl.text = speaker
+                spk_lbl.color = TEXT_ACCENT if entry.speaker else TEXT_DIM
+                spk_lbl.weight = "bold" if entry.speaker else "normal"
+                spk_lbl.y = y
+                spk_lbl.visible = True
+
+                txt_lbl.text = entry.text
+                txt_lbl.color = TEXT_NORMAL
+                txt_lbl.y = y
+                txt_lbl.visible = True
+            else:
+                spk_lbl.visible = False
+                txt_lbl.visible = False
 
     def hide(self) -> None:
         if self._panel_bg:
@@ -108,9 +135,13 @@ class HistoryPanel:
         if self._panel_border:
             self._panel_border.delete()
             self._panel_border = None
-        for elem in self._elements:
-            elem.delete()
-        self._elements.clear()
+        if self._title_label:
+            self._title_label.delete()
+            self._title_label = None
+        for lbl in self._speaker_labels + self._text_labels:
+            lbl.delete()
+        self._speaker_labels.clear()
+        self._text_labels.clear()
         self._visible = False
 
     def update(self, dt: float) -> None:
@@ -143,13 +174,4 @@ class HistoryPanel:
         if not self._visible:
             return
         self._scroll_offset = max(0, self._scroll_offset + int(-scroll_y * 3))
-        # 重建列表
-        self._rebuild()
-
-    def _rebuild(self) -> None:
-        """重建列表内容（保留背景）。"""
-        # 删除旧条目
-        for elem in self._elements[1:]:  # 保留标题
-            elem.delete()
-        self._elements = self._elements[:1]
-        self._build_list()
+        self._update_slots()
