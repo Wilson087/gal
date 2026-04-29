@@ -262,18 +262,22 @@ class AVGApplication(pyglet.window.Window):
         # FPS 计数
         self._fps_count += 1
         self._fps_timer += dt
-        if self._fps_timer >= 1.0 and self._show_fps:
-            if not self._fps_label:
-                self._fps_label = Label(
-                    f"FPS: {self._fps_count}",
-                    font_name=FONT_FAMILIES, font_size=12,
-                    color=(0, 255, 0, 255),
-                    x=10, y=self.height - 20,
-                    anchor_x="left", anchor_y="top",
-                )
-            else:
-                self._fps_label.text = f"FPS: {self._fps_count}"
-                self._fps_label.y = self.height - 20
+        if self._fps_timer >= 1.0:
+            if self._show_fps:
+                if not self._fps_label:
+                    self._fps_label = Label(
+                        f"FPS: {self._fps_count}",
+                        font_name=FONT_FAMILIES, font_size=12,
+                        color=(0, 255, 0, 255),
+                        x=10, y=self.height - 20,
+                        anchor_x="left", anchor_y="top",
+                    )
+                else:
+                    self._fps_label.text = f"FPS: {self._fps_count}"
+                    self._fps_label.y = self.height - 20
+            elif self._fps_label:
+                self._fps_label.delete()
+                self._fps_label = None
             self._fps_count = 0
             self._fps_timer = 0.0
 
@@ -297,11 +301,6 @@ class AVGApplication(pyglet.window.Window):
                         self._auto_mode = False
                     else:
                         self.dialogue_system.advance()
-
-        # if __debug__:
-        #     import random
-        #     if random.randint(0, 100) == 50:
-        #         raise RuntimeError()
 
     def on_resize(self, width: int, height: int) -> None:
         """窗口缩放事件。"""

@@ -59,13 +59,14 @@ class VariableBank:
             condition: 条件字符串，如 "affection > 5"。
 
         Returns:
-            条件是否成立。无法解析时返回 True（视为无条件）。
+            条件是否成立。空字符串返回 True，无法解析时返回 False 并警告。
         """
         if not condition or not condition.strip():
             return True
         parts = condition.strip().split()
         if len(parts) != 3:
-            return True
+            log.warning("条件格式无效（需 3 部分）: %r", condition)
+            return False
         var_name, op, raw_val = parts
         var_val = self.variables.get(var_name, 0)
 
@@ -73,6 +74,11 @@ class VariableBank:
             cmp_val: int | str = int(raw_val)
         except ValueError:
             cmp_val = raw_val
+
+        known_ops = {">", "<", ">=", "<=", "==", "!="}
+        if op not in known_ops:
+            log.warning("条件运算符无效: %r (condition: %r)", op, condition)
+            return False
 
         result = True
         if op == ">":

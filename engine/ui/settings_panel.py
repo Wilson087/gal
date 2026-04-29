@@ -278,9 +278,9 @@ class SettingsPanel:
         self._controls: list = []
         self._tab_labels: list[Label] = []
 
-        # 面板定位
-        self._px = (1280 - _PANEL_W) // 2
-        self._py = (720 - _PANEL_H) // 2
+        # 面板定位（首次基于默认窗口尺寸，show 时基于实际窗口重新计算）
+        self._px = 0
+        self._py = 0
 
         self._build()
 
@@ -461,10 +461,6 @@ class SettingsPanel:
         toggles = [
             ("对话回溯", cfg.text_backtrack,
              lambda s: setattr(cfg, 'text_backtrack', s)),
-            ("自动隐藏UI", cfg.auto_hide_ui,
-             lambda s: setattr(cfg, 'auto_hide_ui', s)),
-            ("点击音效", cfg.click_sound,
-             lambda s: setattr(cfg, 'click_sound', s)),
         ]
         for name, state, cb in toggles:
             toggle = Toggle(self._px + 50, cy, name, state,
@@ -501,6 +497,8 @@ class SettingsPanel:
     def show(self) -> None:
         """显示设置面板。"""
         self._visible = True
+        self._px = (self.app.width - _PANEL_W) // 2
+        self._py = (self.app.height - _PANEL_H) // 2
 
         # 面板背景
         self._panel_bg = RoundedRectangle(

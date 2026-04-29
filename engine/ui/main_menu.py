@@ -101,11 +101,8 @@ class MainMenu:
         buttons = [("新游戏", self._on_new_game)]
 
         # 如果有存档，显示"继续游戏"
-        if hasattr(self.app, 'save_manager'):
-            for i in range(self.app.save_manager.MAX_SLOTS):
-                if self.app.save_manager.get_slot_info(i) is not None:
-                    buttons.append(("继续游戏", self._on_continue))
-                    break
+        if self.app.save_manager.get_latest_slot() is not None:
+            buttons.append(("继续游戏", self._on_continue))
 
         buttons += [
             ("载入存档", self._on_load),
@@ -285,12 +282,9 @@ class MainMenu:
         self.app.start_game()
 
     def _on_continue(self) -> None:
-        """继续游戏：找最新存档并读取。"""
+        """继续游戏：读取最新存档。"""
         self.hide()
-        latest = None
-        for i in range(self.app.save_manager.MAX_SLOTS):
-            if self.app.save_manager.get_slot_info(i) is not None:
-                latest = i
+        latest = self.app.save_manager.get_latest_slot()
         if latest is not None:
             self.app.save_manager.load(latest)
 

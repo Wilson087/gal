@@ -252,14 +252,25 @@ class EffectSystem:
                 self._end_transition()
 
     def _update_blinds(self, dt: float) -> None:
-        """百叶窗转场更新。"""
+        """百叶窗转场更新：fade_in 逐步覆盖，fade_out 逐步揭开。"""
         assert self._transition is not None
         t: dict = self._transition
         strips = t["strips"]
+        total = len(strips)
         half = t["half_duration"]
 
         if t["phase"] == "fade_in":
             progress = min(1.0, t["progress"] / half)
+            # 逐步覆盖：随机隐藏 strip 以露出白色
+            target_hidden = int(progress * total)
+            hidden = [s for s in strips if not s["revealed"]]
+            to_hide = min(target_hidden - len([s for s in strips if s["revealed"]]), len(hidden))
+            random.shuffle(hidden)
+            for i in range(max(0, to_hide)):
+                if i < len(hidden):
+                    hidden[i]["sprite"].opacity = 0
+                    hidden[i]["revealed"] = True
+
             if progress >= 1.0:
                 t["phase"] = "midpoint"
                 t["progress"] = 0.0
@@ -267,17 +278,20 @@ class EffectSystem:
                     t["on_midpoint"]()
 
         elif t["phase"] == "midpoint":
+            # 重置所有 strip 为全白（覆盖状态）
+            for s in strips:
+                s["sprite"].opacity = 255
+                s["revealed"] = False
             t["phase"] = "fade_out"
             t["progress"] = 0.0
 
         elif t["phase"] == "fade_out":
             progress = min(1.0, t["progress"] / half)
-            reveal_count = int(progress * len(strips))
-            # 随机选择至多 reveal_count 条
+            reveal_count = int(progress * total)
             unrevealed = [s for s in strips if not s["revealed"]]
-            to_reveal = min(reveal_count - sum(1 for s in strips if s["revealed"]), len(unrevealed))
+            to_reveal = min(reveal_count - (total - len(unrevealed)), len(unrevealed))
             random.shuffle(unrevealed)
-            for i in range(to_reveal):
+            for i in range(max(0, to_reveal)):
                 if i < len(unrevealed):
                     unrevealed[i]["sprite"].opacity = 0
                     unrevealed[i]["revealed"] = True
@@ -411,8 +425,13 @@ class EffectSystem:
 
     def stop_particles(self) -> None:
         """停止所有粒子效果。"""
+        for p in self._particles:
+            try:
+                p["shape"].delete()
+            except Exception:
+                pass
+        self._particles.clear()
         self._particle_type = "none"
-        self._particles = []
 
     def _update_particles(self, dt: float) -> None:
         """更新粒子位置。"""

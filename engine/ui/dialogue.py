@@ -265,10 +265,22 @@ class DialogueSystem:
         elif seg.type == "shake":
             self._shake_triggered = True
             if hasattr(self.app, "effect_system") and self.app.effect_system:
-                self.app.effect_system.start_shake(0.3, 4)
+                duration = float(seg.data) if seg.data is not None else 0.3  # type: ignore[arg-type]
+                self.app.effect_system.start_shake(duration, 4)
             self._seg_index += 1
 
         elif seg.type == "endshake":
+            self._shake_triggered = False
+            if hasattr(self.app, "effect_system") and self.app.effect_system:
+                self.app.effect_system.stop_shake()
+            self._seg_index += 1
+
+        elif seg.type == "font":
+            self._text_label.font_name = str(seg.data) if seg.data else FONT_FAMILIES
+            self._seg_index += 1
+
+        elif seg.type == "endfont":
+            self._text_label.font_name = FONT_FAMILIES
             self._seg_index += 1
 
         else:
@@ -349,6 +361,14 @@ class DialogueSystem:
         self._speaker_label.visible = visible
         self._text_label.visible = visible
         self._next_label.visible = visible and self._next_label_visible
+
+    def show_end_marker(self) -> None:
+        """显示场景结束标记。"""
+        self._typing = False
+        self._waiting = False
+        self._text_label.text = "—— END ——"
+        self._next_label_visible = False
+        self._next_label.opacity = 0
 
     def clear(self) -> None:
         """清空对话显示。"""

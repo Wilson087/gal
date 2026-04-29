@@ -365,9 +365,7 @@ class SceneManager:
     def end_scene(self) -> None:
         """场景结束。"""
         self._game_ended = True
-        self.app.dialogue_system._text_label.text = "—— END ——"
-        self.app.dialogue_system._next_label_visible = False
-        self.app.dialogue_system._next_label.opacity = 0
+        self.app.dialogue_system.show_end_marker()
         log.info("场景 '%s' 结束", self.current_scene_id)
 
     # ──── 存档数据接口 ──────────────────────────────────
@@ -387,6 +385,16 @@ class SceneManager:
         self.app.variable_bank.variables = data.get("variables", {}).copy()
         self.jump_to_scene(data.get("scene_id", self.first_scene))
         self.dialogue_index = data.get("dialogue_index", 0)
+        # 恢复对话历史
+        if hasattr(self.app, 'history_manager'):
+            self.app.history_manager.clear()
+            for entry in data.get("history", []):
+                self.app.history_manager.record(
+                    entry.get("speaker", ""),
+                    entry.get("text", ""),
+                    entry.get("scene_id", ""),
+                    entry.get("dialogue_index", 0),
+                )
         self._show_current_dialogue()
 
     @property

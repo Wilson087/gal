@@ -37,47 +37,76 @@ class AudioEngine:
         self.sfx_player.volume = self._sfx_volume
         self.voice_player.volume = self._voice_volume
 
+        # 路径解析缓存
+        self._path_cache: dict[str, str] = {}
+        self._audio_index: dict[str, str] | None = None
+
+    def _build_audio_index(self) -> None:
+        """构建 AUDIO_DIR 下所有音频文件的 {base: full_path} 索引。"""
+        if self._audio_index is not None:
+            return
+        self._audio_index = {}
+        if os.path.isdir(AUDIO_DIR):
+            for f in os.listdir(AUDIO_DIR):
+                full = os.path.join(AUDIO_DIR, f)
+                if os.path.isfile(full):
+                    base, _ = os.path.splitext(f)
+                    self._audio_index[base] = full
+                    # 同时以文件名本身为 key（方便模糊匹配）
+                    self._audio_index[f] = full
+
     def _resolve_path(self, path: str) -> str:
-        """解析音频文件路径，自动尝试常见扩展名。"""
+        """解析音频文件路径，自动尝试常见扩展名（带缓存）。"""
         if not path:
             return ""
-        # 如果已经是绝对路径且文件存在，直接返回
+
+        # 缓存命中
+        if path in self._path_cache:
+            cached = self._path_cache[path]
+            if os.path.exists(cached):
+                return cached
+
+        # 绝对路径直接返回
         if os.path.isabs(path) and os.path.exists(path):
+            self._path_cache[path] = path
             return path
 
         # 拼接 AUDIO_DIR
         dir_path = os.path.join(AUDIO_DIR, path)
 
-        # 如果直接路径存在
+        # 直接路径存在
         if os.path.exists(dir_path):
+            self._path_cache[path] = dir_path
             return dir_path
 
         # 尝试常见扩展名
         for ext in _AUDIO_EXTENSIONS:
             test_path = dir_path + ext
             if os.path.exists(test_path):
+                self._path_cache[path] = test_path
                 return test_path
 
-        # 在 AUDIO_DIR 中模糊搜索文件名（忽略扩展名）
-        base = os.path.basename(path)
-        pattern = os.path.join(AUDIO_DIR, base + ".*")
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
+        # 构建文件索引（首次使用时扫描一次）
+        self._build_audio_index()
+        if self._audio_index:
+            base = os.path.basename(path)
+            name_no_ext = os.path.splitext(base)[0]
 
-        # 全量搜索（用于中文/日文等非 ASCII 文件名）
-        if os.path.isdir(AUDIO_DIR):
-            for f in os.listdir(AUDIO_DIR):
-                f_base, _ = os.path.splitext(f)
-                if f_base == base:
-                    return os.path.join(AUDIO_DIR, f)
+            # 精确匹配（无扩展名）
+            if name_no_ext in self._audio_index:
+                self._path_cache[path] = self._audio_index[name_no_ext]
+                return self._path_cache[path]
 
-        # 模糊前缀搜索（JSON 中的文件名可能不完整）
-        if os.path.isdir(AUDIO_DIR):
-            for f in os.listdir(AUDIO_DIR):
-                f_base, fext = os.path.splitext(f)
-                if f_base.startswith(base) or base.startswith(f_base):
-                    return os.path.join(AUDIO_DIR, f)
+            # 精确匹配（含扩展名）
+            if base in self._audio_index:
+                self._path_cache[path] = self._audio_index[base]
+                return self._path_cache[path]
+
+            # 前缀模糊匹配
+            for key, full in self._audio_index.items():
+                if key.startswith(name_no_ext) or name_no_ext.startswith(key):
+                    self._path_cache[path] = full
+                    return full
 
         return dir_path
 

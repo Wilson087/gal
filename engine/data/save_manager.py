@@ -41,6 +41,7 @@ class SaveManager:
     def __init__(self, app: "AVGApplication") -> None:
         self.app = app
         os.makedirs(_SAVE_DIR, exist_ok=True)
+        self._latest_slot: int | None = None
 
     # ── 公共接口 ────────────────────────────────────────────
 
@@ -104,6 +105,16 @@ class SaveManager:
         except (json.JSONDecodeError, OSError):
             return None
 
+    def get_latest_slot(self) -> int | None:
+        """获取最新存档槽位索引（缓存）。"""
+        if self._latest_slot is not None:
+            return self._latest_slot
+        # 回退：扫描所有槽位
+        for i in range(self.MAX_SLOTS):
+            if os.path.exists(self._slot_path(i)):
+                self._latest_slot = i
+        return self._latest_slot
+
     def get_page_count(self) -> int:
         """获取总页数。"""
         return (self.MAX_SLOTS + self.SLOTS_PER_PAGE - 1) // self.SLOTS_PER_PAGE
@@ -127,6 +138,17 @@ class SaveManager:
         # 截图
         screenshot_b64 = self._capture_screenshot()
 
+        # 序列化对话历史
+        history_entries = []
+        if hasattr(self.app, 'history_manager'):
+            for entry in self.app.history_manager.get_entries():
+                history_entries.append({
+                    "speaker": entry.speaker,
+                    "text": entry.text,
+                    "scene_id": entry.scene_id,
+                    "dialogue_index": entry.dialogue_index,
+                })
+
         data = {
             "version": "0.1.0",
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -135,7 +157,7 @@ class SaveManager:
             "variables": dict(self.app.variable_bank.variables),
             "chapter_title": sm.current_scene_id,
             "game_title": sm.title,
-            "history": [],
+            "history": history_entries,
             "screenshot": screenshot_b64,
         }
 
@@ -146,6 +168,7 @@ class SaveManager:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             os.replace(tmp, path)
+            self._latest_slot = slot_index
             return True
         except OSError:
             return False
@@ -168,7 +191,7 @@ class SaveManager:
         return True
 
     def _capture_screenshot(self) -> str:
-        """捕获当前画面，缩放为缩略图，base64 编码。
+        """捕获当前画面，base64 编码为 PNG。
 
         Returns:
             base64 编码的 PNG 数据，失败时返回空字符串。
@@ -176,8 +199,6 @@ class SaveManager:
         try:
             color_buffer = get_buffer_manager().get_color_buffer()
             image = color_buffer.get_image_data()
-
-            # 直接编码为 PNG bytes
             buf = io.BytesIO()
             encoder = PNGImageEncoder()
             encoder.encode(image, "", buf)

@@ -47,9 +47,10 @@ def validate_script(script: dict) -> list[str]:
         if not isinstance(scene, dict):
             errors.append(f"scenes[{i}] 不是 dict 类型")
             continue
-        sid = scene.get("id", f"(索引 {i})")
+        sid = scene.get("id")
         if not isinstance(sid, str) or not sid:
             errors.append(f"scenes[{i}] 缺少有效 'id' 字段")
+            sid = f"(索引 {i})"
         elif sid in scene_ids:
             errors.append(f"场景 id '{sid}' 重复")
         else:

@@ -131,7 +131,8 @@ class Notification:
         self.hide()
         self._total_duration = duration
         w, h = 250, 40
-        x = (1280 - w) // 2
+        # 通知位置：通过组引用的 app 或默认 1280 宽度居中
+        x = (1280 - w) // 2  # Notification 没有 app 引用，用默认居中
         y = 360 - h // 2
 
         self._rect = RoundedRectangle(x, y, w, h, _RADIUS,
@@ -243,11 +244,12 @@ class UIManager:
     def _build_nav_bar(self) -> None:
         """构建底部常驻工具栏（15个按钮）。"""
         total_w = 15 * self.BTN_W + 14 * self.BTN_SPACING
-        start_x = int((1280 - total_w) / 2)
+        win_w = self.app.width if self.app.width else 1280
+        start_x = int((win_w - total_w) / 2)
 
         # 工具栏背景
         self._nav_bar_bg = Rectangle(
-            0, 0, 1280, self._nav_bar_height,
+            0, 0, win_w, self._nav_bar_height,
             color=NAV_BG[:3], batch=self._ui_batch, group=self._nav_group,
         )
 
@@ -296,67 +298,56 @@ class UIManager:
     # ── 工具栏按钮回调 ─────────────────────────────────
 
     def _on_save(self) -> None:
-        if hasattr(self.app, 'ui_manager'):
-            self.show_panel("save")
+        self.show_panel("save")
 
     def _on_load(self) -> None:
-        if hasattr(self.app, 'ui_manager'):
-            self.show_panel("load")
+        self.show_panel("load")
 
     def _on_quick_save(self) -> None:
-        if hasattr(self.app, 'save_manager'):
-            if self.app.save_manager.quick_save():
-                self.notification.show("已快速保存", 1.5)
+        if self.app.save_manager.quick_save():
+            self.notification.show("已快速保存", 1.5)
 
     def _on_quick_load(self) -> None:
-        if hasattr(self.app, 'save_manager'):
-            self.app.save_manager.quick_load()
+        self.app.save_manager.quick_load()
 
     def _on_settings(self) -> None:
         self.show_panel("settings")
 
     def _on_back(self) -> None:
-        if hasattr(self.app, '_go_back'):
-            self.app._go_back()
+        self.app._go_back()
 
     def _on_prev_choice(self) -> None:
-        if hasattr(self.app, '_previous_choice'):
-            self.app._previous_choice()
+        self.app._previous_choice()
 
     def _on_history(self) -> None:
         if self._history_panel:
             self.show_panel("history")
 
     def _on_next(self) -> None:
-        if hasattr(self.app, '_next_dialogue'):
-            self.app._next_dialogue()
+        self.app._next_dialogue()
 
     def _on_skip(self) -> None:
         if self.app.dialogue_system:
-            self.app.dialogue_system._skip_type = True
+            ds = self.app.dialogue_system
+            if ds.is_typing() or ds.is_waiting():
+                ds._skip_type = True
 
     def _on_branch(self) -> None:
         """显示当前分支变量信息。"""
-        info = ""
-        if hasattr(self.app, 'choice_system'):
-            info = self.app.choice_system.get_branch_info()
+        info = self.app.choice_system.get_branch_info()
         self.notification.show(info, 2.0)
 
     def _on_mute(self) -> None:
-        if hasattr(self.app, '_toggle_mute'):
-            self.app._toggle_mute()
+        self.app._toggle_mute()
 
     def _on_revoice(self) -> None:
-        if hasattr(self.app, '_replay_voice'):
-            self.app._replay_voice()
+        self.app._replay_voice()
 
     def _on_screenshot(self) -> None:
-        if hasattr(self.app, '_take_screenshot'):
-            self.app._take_screenshot()
+        self.app._take_screenshot()
 
     def _on_mainmenu(self) -> None:
-        if hasattr(self.app, '_return_to_menu'):
-            self.app._return_to_menu()
+        self.app._return_to_menu()
 
     # ── 面板管理 ───────────────────────────────────────────
 
