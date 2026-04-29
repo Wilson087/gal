@@ -4,7 +4,10 @@
       "Bash(xxd)",
       "Bash(python *)",
       "Bash(git branch *)",
-      "Bash(git switch *)"
+      "Bash(git switch *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
