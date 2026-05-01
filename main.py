@@ -15,7 +15,7 @@ import pyglet
 from pyglet.window import key
 
 from config import AppConfig
-from core.game import Game
+from src.core.game import Game
 
 logger = logging.getLogger("v2.5")
 
