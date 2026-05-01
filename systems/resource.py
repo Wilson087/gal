@@ -34,22 +34,24 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Any, TYPE_CHECKING
 
 # ── pyglet imports ────────────────────────────────────────
-try:
-    import pyglet
-    import pyglet.image
-    import pyglet.media
-except ImportError:
-    pyglet = None  # type: ignore[assignment]
+
+import pyglet
+import pyglet.image
+import pyglet.media
 
 # ── PIL import（可选）─────────────────────────────────────
 try:
-    from PIL import Image as PILImage  # type: ignore[import-not-found]
+    from PIL import Image as PILImage
     _HAS_PIL = True
 except ImportError:
-    PILImage = None
+    if TYPE_CHECKING:
+        from PIL import Image as PILImage
+    else:
+        PILImage = None
     _HAS_PIL = False
 
 logger = logging.getLogger(__name__)

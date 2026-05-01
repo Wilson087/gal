@@ -10,12 +10,18 @@
 ├── core/
 │   ├── events.py          # Event 枚举 + EventBus（弱引用观察者模式）
 │   └── game.py            # Game 引擎中枢 —— 持有所有子系统引用
+├── graphics/
+│   ├── sprite_actor.py    # SpriteActor —— 精灵封装 + 补间动画
+│   └── layer.py           # LayerManager —— 6 层渲染 + 淡入淡出
 ├── systems/
 │   └── resource.py        # ResourceManager —— 惰性加载 + LRU 缓存 + 后台预加载
 ├── main.py                # GameWindow 入口（vsync / 60fps / 焦点暂停）
 └── tests/
-    ├── test_event_bus.py  # EventBus 冒烟测试（7 个）
-    └── test_resource.py   # ResourceManager 测试（13 个，全 mock）
+    ├── conftest.py         # 统一 mock 环境
+    ├── test_event_bus.py   # EventBus（7 个）
+    ├── test_resource.py   # ResourceManager（13 个，全 mock）
+    ├── test_sprite_actor.py # SpriteActor（17 个）
+    └── test_layer.py       # LayerManager（13 个）
 ```
 
 ## 快速开始
@@ -92,6 +98,49 @@ rm.shutdown()                     # 安全关闭
 - **场景版本号**：`clear_scene` 自动丢弃旧场景的预加载任务。
 - **Pillow 可选**：未安装时降级为同步加载。
 
+### SpriteActor — 精灵 + 补间动画
+
+```python
+from graphics.sprite_actor import SpriteActor, ease_in_out_quad
+
+actor = SpriteActor(image, x=640, y=360, batch=batch, group=group)
+actor.move_to(800, 400, 1.0, easing=ease_in_out_quad).fade_to(128, 0.5)
+
+# 每帧
+actor.update(dt)
+
+# 清理
+actor.delete()
+```
+
+- **4 种补间**：`move_to` / `fade_to` / `scale_to` / `rotate_to`，返回 `self` 支持链式调用。
+- **覆盖规则**：同名属性动画互相覆盖，不同属性可并行运行。
+- **`duration=0`**：直接跳目标值，不创建 tween。
+- **缓动函数**：`linear(t)` / `ease_in_out_quad(t)`，可传入自定义函数。
+- **边界检查**：opacity clamp [0,255]、scale ≤ 0 → ValueError。
+
+### LayerManager — 6 层渲染
+
+```python
+from graphics.layer import LayerManager, Layer
+
+lm = LayerManager(width=1280, height=720)
+lm.set_background(bg_image)
+actor = lm.show_sprite(Layer.MID, chara_img, (640, 200))
+lm.fade_out(1.0, color=(0, 0, 0))   # 全屏淡出到黑色
+lm.fade_in(0.5, color=(0, 0, 0))    # 淡入恢复
+
+# 每帧
+lm.update(dt)
+lm.draw()
+```
+
+- **6 层**：`BG → BEHIND → MID → FRONT → EFFECTS → UI`，`OrderedGroup` + 共享 `Batch`。
+- **淡入淡出**：可配置覆盖颜色（黑/白/红等），自动释放旧 overlay 防泄漏。
+- **防御性清理**：`update()` 自动跳过并移除已删除的残留 actor。
+- **`clear_all()`**：清空精灵 + 背景，保留 overlay。
+- **特效占位**：`fog()` / `screen_shake()` 方法预留。
+
 ### GameWindow — 主窗口
 
 `pyglet.window.Window` 子类，提供：
@@ -127,9 +176,9 @@ pytest tests/ -v
 ```
 
 - **Python 3.10+**
-- **mypy `--strict` 零错误**
-- **20 个单元测试**（7 个 EventBus + 13 个 ResourceManager）
-- 所有测试 mock 掉 pyglet / PIL / 文件系统，CI 可跑
+- **mypy `--strict` 零错误**（15 source files）
+- **50 个单元测试**（7 EventBus + 13 ResourceManager + 17 SpriteActor + 13 LayerManager）
+- 所有测试 mock 掉 pyglet / PIL / 文件系统，零 GPU 依赖，CI 可跑
 
 ## License
 

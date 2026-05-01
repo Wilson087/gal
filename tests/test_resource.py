@@ -13,28 +13,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# ── mock pyglet（必须在导入 ResourceManager 之前注入）─────
-_mock_pyglet = MagicMock()
-_mock_pyglet_image = MagicMock()
-_mock_pyglet_media = MagicMock()
-sys.modules["pyglet"] = _mock_pyglet
-sys.modules["pyglet.image"] = _mock_pyglet_image
-sys.modules["pyglet.media"] = _mock_pyglet_media
-# "import pyglet.image" 实际走 _mock_pyglet.image 属性 → 需绑定
-_mock_pyglet.image = _mock_pyglet_image
-_mock_pyglet.media = _mock_pyglet_media
-
-# ── mock PIL ─────────────────────────────────────────────
-_mock_pil = MagicMock()
-_mock_pil_image = MagicMock()
-sys.modules["PIL"] = _mock_pil
-sys.modules["PIL.Image"] = _mock_pil_image
-
 from systems.resource import (
     ResourceManager,
     _PreloadedImage,
     _PreloadedAudio,
 )
+
+# 引用 conftest 注入的 mock（模块级）
+_mock_pyglet = sys.modules["pyglet"]
+_mock_pyglet_image = sys.modules["pyglet.image"]
+_mock_pyglet_media = sys.modules["pyglet.media"]
+_mock_pil_image = sys.modules["PIL.Image"]
 
 
 # ── Fixtures ──────────────────────────────────────────────
@@ -42,15 +31,10 @@ from systems.resource import (
 @pytest.fixture(autouse=True)
 def _reset_mocks() -> None:
     """每个测试前重置 mock 状态。"""
-    _mock_pyglet.reset_mock()
-    _mock_pyglet_image.reset_mock()
-    _mock_pyglet_media.reset_mock()
-    _mock_pil.reset_mock()
-    _mock_pil_image.reset_mock()
-    # reset_mock 保留子属性，但确保 image/media 绑定仍在
-    _mock_pyglet.image = _mock_pyglet_image
-    _mock_pyglet.media = _mock_pyglet_media
-    # reset_mock() 不清 side_effect / return_value，手动清除避免跨测试泄露
+    for key in ("pyglet", "pyglet.image", "pyglet.media", "PIL", "PIL.Image"):
+        sys.modules[key].reset_mock()
+    _mock_pyglet.image = _mock_pyglet_image  # type: ignore[attr-defined]
+    _mock_pyglet.media = _mock_pyglet_media  # type: ignore[attr-defined]
     _mock_pyglet_image.load.side_effect = None
     _mock_pyglet_image.load.return_value = MagicMock()
     _mock_pyglet_media.load.side_effect = None
