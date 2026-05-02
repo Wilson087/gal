@@ -1,0 +1,22 @@
+{
+  "characters": {
+    "sora": {
+      "name": "春日野穹",
+      "parts": {
+        "表情": [
+          "images/春日野穹-校服-S.png",
+          "images/春日野穹-校服-S-开心.png",
+          "images/春日野穹-校服-S-不悦.png"
+        ],
+        "服装": [
+          "images/春日野穹-校服-L.png",
+          "images/春日野穹-哥特服装-L.png"
+        ],
+        "姿态": [
+          "images/春日野穹-校服-M.png",
+          "images/春日野穹-哥特服装-M.png"
+        ]
+      }
+    }
+  }
+}

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import queue
 import threading
 from collections import OrderedDict
@@ -345,7 +346,9 @@ class ResourceManager:
             FileNotFoundError: 文件不存在。
         """
         resolved = (self._data_root / relative_path).resolve()
-        if not str(resolved).startswith(str(self._data_root)):
+        root_str = str(self._data_root)
+        resolved_str = str(resolved)
+        if resolved_str != root_str and not resolved_str.startswith(root_str + os.sep):
             raise ValueError(f"路径穿越禁止: {relative_path} → {resolved}")
         if not resolved.is_file():
             raise FileNotFoundError(f"资源文件不存在: {resolved}")
@@ -361,7 +364,7 @@ class ResourceManager:
             self._image_cache.move_to_end(key)
             self._image_cache[key] = img
             return
-        if len(self._image_cache) >= self._max_images:
+        if self._max_images > 0 and len(self._image_cache) >= self._max_images:
             evicted_key, evicted_val = self._image_cache.popitem(last=False)
             logger.debug("LRU 逐出图像: %s", evicted_key)
             self._dispose_image(evicted_val)
@@ -375,7 +378,7 @@ class ResourceManager:
             self._audio_cache.move_to_end(key)
             self._audio_cache[key] = src
             return
-        if len(self._audio_cache) >= self._max_audio:
+        if self._max_audio > 0 and len(self._audio_cache) >= self._max_audio:
             evicted_key, evicted_val = self._audio_cache.popitem(last=False)
             logger.debug("LRU 逐出音频: %s", evicted_key)
             self._dispose_audio(evicted_val)
@@ -464,11 +467,13 @@ class ResourceManager:
             except queue.Empty:
                 continue
 
-            # 场景版本校验：丢弃旧场景任务
-            if scene_version != self._scene_version:
+            # 场景版本校验：丢弃旧场景任务（读锁保护）
+            with self._lock:
+                current_version = self._scene_version
+            if scene_version != current_version:
                 logger.debug(
                     "丢弃旧场景预加载任务: v%d≠v%d %s %s",
-                    scene_version, self._scene_version, kind, path,
+                    scene_version, current_version, kind, path,
                 )
                 self._queue.task_done()
                 continue
@@ -505,17 +510,13 @@ class ResourceManager:
                 data=pil_img.tobytes(),
                 format="RGBA",
             )
+            with self._lock:
+                if key not in self._image_cache:
+                    self._insert_image_lru(key, pre)
+                    logger.debug("预加载完成(image): %s", key)
         else:
-            # 降级：后台仅读字节，主线程 get_image 时同步加载
-            raw = full_path.read_bytes()
-            pre = _PreloadedImage(
-                width=0, height=0, data=raw, format="__RAW__"
-            )
-
-        with self._lock:
-            if key not in self._image_cache:
-                self._insert_image_lru(key, pre)
-                logger.debug("预加载完成(image): %s", key)
+            # PIL 不可用：跳过预加载，get_image 会在主线程同步加载
+            logger.debug("PIL 不可用，跳过预加载(image): %s", path)
 
     def _preload_audio_impl(self, path: str) -> None:
         """后台线程：读取音频文件字节（不涉及音频解码）。"""

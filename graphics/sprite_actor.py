@@ -82,12 +82,13 @@ class SpriteActor:
         x: float,
         y: float,
         batch: pyglet.graphics.Batch,
-        group: pyglet.graphics.OrderedGroup,  # type: ignore[name-defined]
+        group: pyglet.graphics.Group,
     ) -> None:
         self._sprite: pyglet.sprite.Sprite = pyglet.sprite.Sprite(
             image, x=x, y=y, batch=batch, group=group,
         )
         self._tweens: dict[str, _Tween] = {}
+        self._deleted: bool = False
 
     # ── 只读属性 ──────────────────────────────────────────
 
@@ -119,7 +120,7 @@ class SpriteActor:
     @property
     def alive(self) -> bool:
         """精灵是否未被删除。"""
-        return not self._sprite._delete  # type: ignore[attr-defined]
+        return not self._deleted
 
     # ── 补间动画 ──────────────────────────────────────────
 
@@ -264,6 +265,7 @@ class SpriteActor:
 
     def delete(self) -> None:
         """删除底层 Sprite 并清空动画状态。"""
+        self._deleted = True
         self._tweens.clear()
         self._sprite.delete()
         logger.debug("SpriteActor 已删除")
@@ -279,8 +281,9 @@ class SpriteActor:
         easing: EasingFunc,
     ) -> None:
         """设置或覆盖某属性的补间动画。"""
-        if duration < 0:
-            raise ValueError(f"duration 不能为负数: {duration}")
+        import math
+        if not math.isfinite(duration) or duration < 0:
+            raise ValueError(f"duration 必须为非负有限值: {duration}")
         if duration == 0.0:
             self._apply_tween_attr(attr, target)
             self._tweens.pop(attr, None)

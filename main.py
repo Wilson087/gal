@@ -15,6 +15,7 @@ import pyglet
 from pyglet.window import key
 
 from config import AppConfig
+from core.events import Event
 from core.game import Game
 
 logger = logging.getLogger("v2.5")
@@ -58,6 +59,9 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
         self._config: AppConfig = config
         self._game: Game = Game(config)
 
+        # 初始化所有子系统
+        self._game.init_subsystems(window=self)
+
         # 60fps 游戏循环
         pyglet.clock.schedule_interval(self._game.update, 1.0 / 60.0)
 
@@ -90,6 +94,7 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
 
         - F11: 切换全屏。
         - ESC: 关闭窗口 / 退出。
+        - 其余按键: 转发到 EventBus，由 UI 等子系统消费。
         """
         if symbol == key.F11:
             self.set_fullscreen(not self.fullscreen)
@@ -98,8 +103,14 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
                 "ON" if self.fullscreen else "OFF",
             )
         elif symbol == key.ESCAPE:
-            logger.info("ESC pressed — exiting")
-            self.on_close()
+            # 鉴赏模式中 ESC 返回上一状态，否则退出
+            if not self._game.handle_escape():
+                logger.info("ESC pressed — exiting")
+                self.on_close()
+        else:
+            self._game.events.emit(
+                Event.KEY_PRESS, symbol=symbol, modifiers=modifiers
+            )
 
     def on_mouse_press(
         self, x: int, y: int, button: int, modifiers: int
@@ -107,6 +118,33 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
         """鼠标点击 — 左键转发到 Game.on_click。"""
         if button == pyglet.window.mouse.LEFT:
             self._game.on_click(x, y)
+
+    def on_mouse_scroll(
+        self, x: int, y: int, scroll_x: float, scroll_y: float
+    ) -> None:
+        """鼠标滚轮 — 转发到 EventBus。"""
+        self._game.events.emit(
+            "scroll", x=x, y=y, scroll_x=scroll_x, scroll_y=scroll_y
+        )
+
+    def on_mouse_motion(
+        self, x: int, y: int, dx: int, dy: int
+    ) -> None:
+        """鼠标移动 — 按状态分发，不走 EventBus 避免每帧广播。"""
+        self._game.handle_mouse_motion(x, y)
+
+    def on_mouse_drag(
+        self, x: int, y: int, dx: int, dy: int,
+        buttons: int, modifiers: int,
+    ) -> None:
+        """鼠标拖动 — 按状态分发（用于设置面板滑块）。"""
+        self._game.handle_mouse_drag(x, y, buttons, modifiers)
+
+    def on_mouse_release(
+        self, x: int, y: int, button: int, modifiers: int
+    ) -> None:
+        """鼠标释放 — 按状态分发（结束滑块拖动）。"""
+        self._game.handle_mouse_release(x, y)
 
     # ── 焦点 ──────────────────────────────────────────────
 
@@ -120,13 +158,13 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
     def on_resize(self, width: int, height: int) -> None:
         """窗口缩放 — 通知子系统。"""
         super().on_resize(width, height)
-        self._game.events.emit("resize", width=width, height=height)
+        self._game.events.emit(Event.RESIZE, width=width, height=height)
 
     def on_close(self) -> None:
         """窗口关闭 — 释放资源并安全退出。"""
         logger.info("Window closing — releasing resources")
         pyglet.clock.unschedule(self._game.update)
-        self._game.events.clear()
+        self._game.shutdown()
         pyglet.app.exit()
         super().on_close()
 

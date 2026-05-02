@@ -65,6 +65,17 @@ class Event(Enum):
         return self.name.lower()
 
 
+class GameState(Enum):
+    """引擎全局状态 — 控制输入分发和更新焦点。"""
+
+    TITLE = auto()
+    NOVEL = auto()
+    CG_GALLERY = auto()
+    MUSIC_ROOM = auto()
+    CHARACTER_VIEWER = auto()
+    SETTINGS = auto()
+
+
 class EventBus:
     """事件总线 — 观察者模式的弱引用实现。
 
@@ -114,11 +125,22 @@ class EventBus:
         if name not in self._listeners:
             return
         before = len(self._listeners[name])
-        self._listeners[name] = [
-            wr
-            for wr in self._listeners[name]
-            if self._resolve(wr) is not callback
-        ]
+        # 使用函数 / 实例身份比较，而非 bound-method 身份
+        kept: list[weakref.ReferenceType] = []  # type: ignore[type-arg]
+        for wr in self._listeners[name]:
+            resolved = self._resolve(wr)
+            if resolved is None:
+                continue
+            if resolved is callback:
+                continue
+            if hasattr(resolved, "__func__") and hasattr(callback, "__func__"):
+                # 比较底层函数和实例以解决 bound-method 重创建问题
+                rf: Any = resolved
+                cf: Any = callback
+                if rf.__func__ is cf.__func__ and rf.__self__ is cf.__self__:
+                    continue
+            kept.append(wr)
+        self._listeners[name] = kept
         if not self._listeners[name]:
             del self._listeners[name]
         else:

@@ -207,7 +207,7 @@ def test_update_prunes_deleted_actors(lm: LayerManager) -> None:
     mock_img.height = 64
     actor = lm.show_sprite(Layer.MID, mock_img, (100, 100))
     # 模拟外部直接 delete 不调 remove_sprite
-    actor._sprite._delete = True  # type: ignore[attr-defined]
+    actor._deleted = True
     lm.update(0.016)
     # 已删除 actor 应被自动移除
     assert actor not in lm._sprites[Layer.MID]

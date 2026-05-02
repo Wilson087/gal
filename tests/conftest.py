@@ -17,6 +17,8 @@ _mock_pyglet_sprite = MagicMock()
 _mock_pyglet_graphics = MagicMock()
 _mock_pyglet_shapes = MagicMock()
 _mock_pyglet_media = MagicMock()
+_mock_pyglet_text = MagicMock()
+_mock_pyglet_window = MagicMock()
 
 sys.modules["pyglet"] = _mock_pyglet
 sys.modules["pyglet.image"] = _mock_pyglet_image
@@ -24,12 +26,16 @@ sys.modules["pyglet.sprite"] = _mock_pyglet_sprite
 sys.modules["pyglet.graphics"] = _mock_pyglet_graphics
 sys.modules["pyglet.shapes"] = _mock_pyglet_shapes
 sys.modules["pyglet.media"] = _mock_pyglet_media
+sys.modules["pyglet.text"] = _mock_pyglet_text
+sys.modules["pyglet.window"] = _mock_pyglet_window
 
 _mock_pyglet.image = _mock_pyglet_image
 _mock_pyglet.sprite = _mock_pyglet_sprite
 _mock_pyglet.graphics = _mock_pyglet_graphics
 _mock_pyglet.shapes = _mock_pyglet_shapes
 _mock_pyglet.media = _mock_pyglet_media
+_mock_pyglet.text = _mock_pyglet_text
+_mock_pyglet.window = _mock_pyglet_window
 
 # ── PIL ────────────────────────────────────────────────────
 _mock_pil = MagicMock()

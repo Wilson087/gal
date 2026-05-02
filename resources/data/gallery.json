@@ -1,0 +1,25 @@
+{
+  "cgs": [
+    {
+      "id": "cg001",
+      "thumbnail": "images/学校-教室.png",
+      "full": "images/学校-教室.png",
+      "unlock_flag": "cg001_seen",
+      "title": "放学后的教室"
+    },
+    {
+      "id": "cg002",
+      "thumbnail": "images/家-客厅.png",
+      "full": "images/家-客厅.png",
+      "unlock_flag": "cg002_seen",
+      "title": "温馨的客厅"
+    },
+    {
+      "id": "cg003",
+      "thumbnail": "images/商场.png",
+      "full": "images/商场.png",
+      "unlock_flag": "cg003_seen",
+      "title": "周末的商场"
+    }
+  ]
+}

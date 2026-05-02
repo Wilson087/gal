@@ -1,0 +1,34 @@
+{
+  "tracks": [
+    {
+      "id": "bgm01",
+      "title": "阳光明媚的早晨",
+      "file": "bgm/bgm01.ogg",
+      "unlock_flag": "bgm01_heard"
+    },
+    {
+      "id": "bgm02",
+      "title": "温柔的思念",
+      "file": "bgm/bgm02.ogg",
+      "unlock_flag": "bgm02_heard"
+    },
+    {
+      "id": "bgm03",
+      "title": "欢乐的日常",
+      "file": "bgm/bgm03.ogg",
+      "unlock_flag": "bgm03_heard"
+    },
+    {
+      "id": "bgm04",
+      "title": "紧张的对峙",
+      "file": "bgm/bgm04.ogg",
+      "unlock_flag": "bgm04_heard"
+    },
+    {
+      "id": "bgm05",
+      "title": "悲伤的离别",
+      "file": "bgm/bgm05.ogg",
+      "unlock_flag": "bgm05_heard"
+    }
+  ]
+}

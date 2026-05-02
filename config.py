@@ -19,6 +19,16 @@ SAVE_PATH: str = "saves"
 LOG_PATH: str = "logs"
 DEFAULT_TITLE: str = "Visual Novel Engine V2.5"
 TARGET_FPS: int = 60
+MAX_SCRIPT_ADVANCE: int = 1000
+MAX_SAVE_SLOTS: int = 100
+
+# 鉴赏模式
+GALLERY_DATA: str = "resources/data/gallery.json"
+MUSIC_DATA: str = "resources/data/music.json"
+CHARACTER_DATA: str = "resources/data/characters.json"
+
+# 脚本
+SCRIPT_ROOT: str = "resources/scripts"
 
 
 # ── 应用配置 ──────────────────────────────────────────────
@@ -38,3 +48,7 @@ class AppConfig:
     log_file: str | None = None
     resource_root: str = RESOURCE_ROOT
     save_path: str = SAVE_PATH
+    gallery_data: str = GALLERY_DATA
+    music_data: str = MUSIC_DATA
+    character_data: str = CHARACTER_DATA
+    script_root: str = SCRIPT_ROOT

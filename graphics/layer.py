@@ -1,7 +1,7 @@
 """
 Layer Manager — 多层绘制管理器
 ===============================
-使用 pyglet.graphics.OrderedGroup + Batch 管理 6 个渲染层。
+使用 pyglet.graphics.Group + Batch 管理 6 个渲染层。
 提供背景设置、精灵增删、淡入淡出、特效占位。
 
 ::
@@ -26,7 +26,7 @@ import pyglet.graphics
 import pyglet.image
 import pyglet.shapes
 import pyglet.sprite
-from pyglet.graphics import Batch, OrderedGroup  # type: ignore[attr-defined]
+from pyglet.graphics import Batch, Group
 
 from .sprite_actor import SpriteActor, linear
 
@@ -47,7 +47,7 @@ class Layer(Enum):
 class LayerManager:
     """多层绘制管理器。
 
-    所有精灵加入同一个 Batch，按 Layer 的 OrderedGroup 排序。
+    所有精灵加入同一个 Batch，按 Layer 的 Group 排序。
     覆盖层（fade_out/fade_in）为独立 pyglet.shapes.Rectangle，
     不参与 Batch，单独绘制。
 
@@ -60,8 +60,8 @@ class LayerManager:
         self.height: int = height
 
         self._batch: Batch = Batch()
-        self._groups: dict[Layer, OrderedGroup] = {
-            layer: OrderedGroup(layer.value) for layer in Layer
+        self._groups: dict[Layer, Group] = {
+            layer: Group(order=layer.value) for layer in Layer
         }
 
         # 每层精灵列表
@@ -79,6 +79,15 @@ class LayerManager:
             "LayerManager 已初始化: %dx%d, %d 层",
             width, height, len(Layer),
         )
+
+    @property
+    def batch(self) -> Batch:
+        """共享的 pyglet Batch，UI 元素和精灵共用。"""
+        return self._batch
+
+    def get_group(self, layer: Layer) -> Group:
+        """返回指定 Layer 的 Group，用于 UI 元素排序。"""
+        return self._groups[layer]
 
     # ── 背景 ──────────────────────────────────────────────
 
@@ -239,6 +248,7 @@ class LayerManager:
             for actor in self._sprites[layer]:
                 actor.delete()
             self._sprites[layer].clear()
+        self._fade_tween = None
         logger.debug("clear_all: 所有精灵已清空（overlay 保留）")
 
     def update(self, dt: float) -> None:
@@ -247,6 +257,15 @@ class LayerManager:
         Args:
             dt: delta 时间（秒）。
         """
+        # 先清理已删除的精灵（即使 dt=0 也要清理）
+        for layer in Layer:
+            stale: list[SpriteActor] = []
+            for actor in self._sprites[layer]:
+                if not actor.alive:
+                    stale.append(actor)
+            for actor in stale:
+                self._sprites[layer].remove(actor)
+
         if dt <= 0:
             return
 
@@ -254,16 +273,10 @@ class LayerManager:
         if self._bg_actor is not None:
             self._bg_actor.update(dt)
 
-        # 各层精灵 + 防御已删除残留
+        # 各层精灵
         for layer in Layer:
-            stale: list[SpriteActor] = []
             for actor in self._sprites[layer]:
-                if not actor.alive:
-                    stale.append(actor)
-                    continue
                 actor.update(dt)
-            for actor in stale:
-                self._sprites[layer].remove(actor)
 
         # 淡入淡出
         self._update_fade(dt)
