@@ -1,11 +1,13 @@
 @scene 学校-校门
 @bgm bgm01
+@show 春日野穹 校服-S at center
 
 "四月。樱花瓣在微风中飘落，校门前站满了新入学的面孔。"
 "又是一个寻常的春天——但对我来说，这个春天却格外不同。"
 
 "春日野穹，早上好。"
 "前辈，早上好～"
+@show 春日野穹 校服-M at center
 
 @flag met_sora true
 
@@ -13,6 +15,7 @@
 "谢谢前辈！我会努力的。"
 
 @scene 学校-教室
+@show 春日野穹 校服-S at center
 
 "教室里已经空无一人，夕阳从窗外斜斜地照进来。"
 "穹正认真地擦着黑板，粉笔灰在光线中飞舞。"
@@ -56,10 +59,12 @@
 @label after_choice
 
 @scene 学校-教室
+@show 春日野穹 校服-S at center
 
 "第二天放学后。"
 @if agreed_walk
 "校门口，穹已经等在那里，看到我时脸上露出了灿烂的笑容。"
+@show 春日野穹 校服-M at center
 @jump walk_scene
 
 @if declined_walk
@@ -76,6 +81,7 @@
 @bgm bgm01
 
 @scene 商场
+@show 春日野穹 校服-S at center
 
 "周末，约穹一起去商场。"
 "这里的可丽饼很好吃哦。"
@@ -120,6 +126,7 @@
 @bgm bgm02
 
 @scene 家-门口
+@show 春日野穹 校服-S at center
 
 "傍晚，送穹回到家门口。"
 "今天真的很开心，谢谢你陪我来。"
@@ -142,6 +149,7 @@
 @bgm bgm01
 
 @scene 学校-校门
+@show 春日野穹 校服-S at center
 
 "四月很快就过去了。"
 "但我和穹的故事，才刚刚开始。"
