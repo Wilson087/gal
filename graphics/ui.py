@@ -751,9 +751,19 @@ class SettingsPanel(UIElement):
 
         # 文本速度回调（由 UIManager 注入）
         self._on_text_speed_change: Callable[[float], None] | None = None
+        self._on_overlay_change: Callable[[float], None] | None = None
+        self._on_hide_callback: Callable[[], None] | None = None
 
     def set_text_speed_callback(self, cb: Callable[[float], None]) -> None:
         self._on_text_speed_change = cb
+
+    def set_overlay_callback(self, cb: Callable[[float], None]) -> None:
+        """注册回调：设置面板 → 更新菜单遮罩透明度。"""
+        self._on_overlay_change = cb
+
+    def set_on_hide_callback(self, cb: Callable[[], None]) -> None:
+        """注册回调：面板关闭时回调，用于 re-show 主菜单。"""
+        self._on_hide_callback = cb
 
     # ── 公开方法 ──────────────────────────────────────────
 
@@ -767,6 +777,8 @@ class SettingsPanel(UIElement):
         self._visible = False
         self._dragging_slider = None
         self._delete_objects()
+        if self._on_hide_callback is not None:
+            self._on_hide_callback()
 
     def update(self, dt: float) -> None:
         """空 —— 设置面板是纯交互驱动。"""
@@ -828,7 +840,7 @@ class SettingsPanel(UIElement):
         self._delete_objects()
 
         pw = pct_x(60, self._width)
-        ph = pct_y(65, self._height)
+        ph = pct_y(72, self._height)
         px = (self._width - pw) // 2
         py = (self._height - ph) // 2
 
@@ -856,6 +868,8 @@ class SettingsPanel(UIElement):
              lambda v: self._audio.set_volume("se", v) if self._audio else None),
             ("文本速度", "speed", 10.0, 200.0, 60.0,
              lambda v: self._on_text_speed_change(v) if self._on_text_speed_change else None),
+            ("菜单遮罩", "overlay", 0.0, 1.0, 0.55,
+             lambda v: self._on_overlay_change(v) if self._on_overlay_change else None),
         ]
 
         slider_start_y = py + ph - pct_y(15, self._height)
@@ -905,9 +919,9 @@ class SettingsPanel(UIElement):
         on_change: Callable[[float], None],
     ) -> _Slider:
         """构建一个滑块（bar + handle + label + value_label）。"""
-        label_x = px + pct_x(5, self._width)
-        bar_x = px + pct_x(28, self._width)
-        bar_w = int(pw * 0.55)
+        label_x = px + pct_x(5, pw)
+        bar_x = px + pct_x(28, pw)
+        bar_w = int(pw * 0.45)
         bar_h = 8
         handle_w = 16
         handle_h = 24
@@ -933,7 +947,7 @@ class SettingsPanel(UIElement):
             color=(160, 180, 220), batch=self._batch, group=self._group,
         )
 
-        val_x = bar_x + bar_w + pct_x(2, self._width)
+        val_x = bar_x + bar_w + pct_x(2, pw)
         val_lbl = pyglet.text.Label(
             "", font_name=self._font_name, font_size=self._font_size,
             x=val_x, y=sy + bar_h // 2,

@@ -265,7 +265,7 @@ class AudioManager:
         # 取消旧淡出
         self._cancel_fade()
 
-        self._fade_start_vol = self._bgm_player.volume
+        self._fade_start_vol = self._bgm_player.volume  # type: ignore[assignment]
         self._fade_elapsed = 0.0
         self._fade_duration = duration
         self._fade_active = True

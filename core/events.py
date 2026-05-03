@@ -196,7 +196,7 @@ class EventBus:
     @staticmethod
     def _make_weak(cb: CallbackType) -> weakref.ReferenceType:  # type: ignore[type-arg]
         """为回调创建合适的弱引用包装。"""
-        if hasattr(cb, "__self__") and cb.__self__ is not None:
+        if hasattr(cb, "__self__") and cb.__self__ is not None:  # pyright: ignore[reportFunctionMemberAccess]
             return weakref.WeakMethod(cb)
         return weakref.ref(cb)
 

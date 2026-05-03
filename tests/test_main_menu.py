@@ -61,7 +61,7 @@ def test_menu_show_hide(
     assert menu._visible is True
     assert menu._selected_index == 0
     assert menu._hover_index == -1
-    assert len(menu._buttons) == 6
+    assert len(menu._buttons) == 7
     menu.hide()
     assert menu._visible is False
     assert len(menu._buttons) == 0
@@ -72,7 +72,7 @@ def test_menu_button_count(
 ) -> None:
     menu = MainMenu(mock_batch, mock_group, 1280, 720)
     menu.show()
-    assert len(menu._buttons) == 6
+    assert len(menu._buttons) == 7
 
 
 # ── 2. 点击 ─────────────────────────────────────────────
@@ -156,7 +156,7 @@ def test_menu_keyboard_clamp(
     assert menu._selected_index == 0  # clamp
     for _ in range(10):
         menu.handle_key(k.DOWN)
-    assert menu._selected_index == 5  # last item
+    assert menu._selected_index == 6  # last item
 
 
 def test_menu_enter_emits_event(

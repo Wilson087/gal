@@ -34,6 +34,7 @@ _MENU_ITEMS: list[tuple[str, str]] = [
     ("CG 画廊", "cg_gallery"),
     ("音乐欣赏", "music_room"),
     ("立绘鉴赏", "character_viewer"),
+    ("设置", "settings"),
     ("退出游戏", "quit"),
 ]
 
@@ -79,6 +80,7 @@ class MainMenu:
         self._buttons: list[dict[str, Any]] = []
 
         # pyglet 对象
+        self._overlay: pyglet.shapes.Rectangle | None = None
         self._title_label: pyglet.text.Label | None = None
         self._subtitle_label: pyglet.text.Label | None = None
         self._version_label: pyglet.text.Label | None = None
@@ -121,6 +123,11 @@ class MainMenu:
             # 高亮条 — 仅在悬停或选中时可见
             if accent is not None:
                 accent.visible = i in (self._hover_index, self._selected_index)
+
+    def set_overlay_opacity(self, value: float) -> None:
+        """设置背景遮罩透明度。value 范围 [0.0, 1.0]。"""
+        if self._overlay is not None:
+            self._overlay.opacity = int(value * 255)
 
     def draw(self) -> None:
         """空 —— Batch 自动绘制。"""
@@ -175,11 +182,19 @@ class MainMenu:
 
         cx = self._width // 2
 
+        # ── 背景遮罩（让文字更清晰） ──────────────────────
+        self._overlay = pyglet.shapes.Rectangle(
+            x=0, y=0, width=self._width, height=self._height,
+            color=(0, 0, 0),
+            batch=self._batch, group=self._group,
+        )
+        self._overlay.opacity = 140
+
         # ── 标题 ──────────────────────────────────────────
         self._title_label = pyglet.text.Label(
             "Visual Novel Engine",
             font_name=self._font_name, font_size=48,
-            x=cx, y=_pcty(70, self._height),
+            x=cx, y=_pcty(82, self._height),
             color=(255, 255, 255, 255),
             anchor_x="center", anchor_y="center",
             batch=self._batch, group=self._group,
@@ -187,7 +202,7 @@ class MainMenu:
         self._subtitle_label = pyglet.text.Label(
             "— 春 日 野 穹 —",
             font_name=self._font_name, font_size=24,
-            x=cx, y=_pcty(63, self._height),
+            x=cx, y=_pcty(75, self._height),
             color=(200, 200, 220, 255),
             anchor_x="center", anchor_y="center",
             batch=self._batch, group=self._group,
@@ -195,12 +210,11 @@ class MainMenu:
 
         # ── 按钮 ──────────────────────────────────────────
         n = len(_MENU_ITEMS)
-        btn_w = _pctx(30, self._width)
+        btn_w = _pctx(22, self._width)
         btn_h = 48
-        spacing = 6
-        total_h = n * btn_h + (n - 1) * spacing
-        start_y = (self._height // 2) + (total_h // 2) - btn_h
-        btn_x = _pctx(35, self._width)
+        spacing = 8
+        start_y = _pcty(63, self._height) - btn_h
+        btn_x = _pctx(39, self._width)
 
         for i, (text, _tag) in enumerate(_MENU_ITEMS):
             by = start_y - i * (btn_h + spacing)
@@ -248,9 +262,10 @@ class MainMenu:
 
     def _delete_ui(self) -> None:
         """删除所有 UI 对象。"""
-        for obj in (self._title_label, self._subtitle_label, self._version_label):
+        for obj in (self._overlay, self._title_label, self._subtitle_label, self._version_label):
             if obj is not None:
                 obj.delete()
+        self._overlay = None
         self._title_label = None
         self._subtitle_label = None
         self._version_label = None

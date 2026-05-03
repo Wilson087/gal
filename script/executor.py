@@ -40,11 +40,8 @@ class ScriptExecutor:
 
         # 运行时标志
         self._flags: dict[str, bool] = {}
-        # 当前选中的选项索引（ChoiceCommand 回传）
-        self._choice_result: int = -1 # ai 写这个属性干嘛的都没用到
-        # 对话等待标志（DialogueCommand 用，DIALOGUE_NEXT 时清除）
+        # 等待对话点击 / 选项确认
         self._waiting_dialogue: bool = False
-
         self._waiting_choice: bool = False
 
     # ── 加载 ──────────────────────────────────────────────
@@ -212,12 +209,6 @@ class ScriptExecutor:
         self._waiting_choice = False
 
     # ── 状态查询 ──────────────────────────────────────────
-
-    # ai 也是神经，需要外部更改还设置成只读的
-    # @property 
-    # def running(self) -> bool:
-    #     """脚本是否正在运行。"""
-    #     return self._running
 
     @property
     def current_command(self) -> Command | None:
