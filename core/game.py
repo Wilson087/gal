@@ -70,6 +70,9 @@ class Game:
         self.character_viewer: Any = None
         self.main_menu: Any = None
 
+        # ── 角色立绘追踪 ──────────────────────────────
+        self._char_sprites: dict[str, Any] = {}
+
         logger.info(
             "Game 实例已创建: %dx%d, debug=%s",
             config.width, config.height, config.debug,
@@ -217,6 +220,9 @@ class Game:
         self.events.on("scene_start", self._on_scene_start)
         self.events.on("dialogue", self._on_dialogue)
         self.events.on("audio:bgm", self._on_bgm)
+        self.events.on("show", self._on_show)
+        self.events.on("hide", self._on_hide)
+        self.events.on(Event.DIALOGUE_NEXT, self.script_executor.on_dialogue_next)
 
         # 追踪角色精灵
         self._char_sprites: dict[str, Any] = {}
@@ -324,10 +330,14 @@ class Game:
     # ── 剧本事件处理 ────────────────────────────────────────
 
     def _on_scene_start(self, **kwargs: Any) -> None:
-        """场景切换：加载并设置背景。"""
+        """场景切换：清除旧立绘，加载并设置背景。"""
         scene_id = str(kwargs.get("scene_id", ""))
         if not scene_id or self.resource_manager is None or self.layers is None:
             return
+        # 清除上一场景的立绘
+        for actor in self._char_sprites.values():
+            self.layers.remove_sprite(actor)
+        self._char_sprites.clear()
         # 尝试多个常见路径
         for path in (
             f"images/{scene_id}.png",
@@ -360,6 +370,52 @@ class Game:
                 self.audio.play_bgm(source, volume=0.7)
                 return
         logger.debug("BGM 未找到: %s", track)
+
+    def _on_show(self, **kwargs: Any) -> None:
+        """角色立绘显示事件（ShowCommand → "show"）。"""
+        if self.resource_manager is None or self.layers is None:
+            return
+        char = str(kwargs.get("char", ""))
+        pose = str(kwargs.get("pose", ""))
+        position = str(kwargs.get("position", "center"))
+        if not char or not pose:
+            return
+
+        image_path = f"images/{char}-{pose}.png"
+        img = self.resource_manager.get_image(image_path)
+        if img is None:
+            logger.warning("立绘未找到: %s", image_path)
+            return
+
+        # 移除同角色旧立绘
+        if char in self._char_sprites:
+            self.layers.remove_sprite(self._char_sprites[char])
+
+        from graphics.layer import Layer
+        # 按 position 字符串计算 X 坐标（以精灵中心为基准）
+        pos_lower = position.lower()
+        if "left" in pos_lower:
+            anchor_x = self.config.width * 0.25
+        elif "right" in pos_lower:
+            anchor_x = self.config.width * 0.75
+        else:
+            anchor_x = self.config.width * 0.5
+
+        x = int(anchor_x - img.width / 2)
+        actor = self.layers.show_sprite(Layer.MID, img, (x, 0))
+        self._char_sprites[char] = actor
+        logger.info("立绘已显示: %s (%s) at %s", char, pose, position)
+
+    def _on_hide(self, **kwargs: Any) -> None:
+        """角色立绘隐藏事件（HideCommand → "hide"）。"""
+        if self.layers is None:
+            return
+        char = str(kwargs.get("char", ""))
+        if not char:
+            return
+        if char in self._char_sprites:
+            self.layers.remove_sprite(self._char_sprites.pop(char))
+            logger.info("立绘已隐藏: %s", char)
 
     # ── 键盘 ────────────────────────────────────────────────
 
@@ -437,6 +493,7 @@ class Game:
             return
         if self.main_menu is not None:
             self.main_menu.hide()
+        self._char_sprites.clear()
         try:
             script_path = f"{self.config.script_root}/prologue.ws"
             self.script_executor.load(script_path)
@@ -492,6 +549,7 @@ class Game:
         self._hide_all_galleries()
         if self.layers is not None:
             self.layers.clear_all()
+        self._char_sprites.clear()
         if self.ui_manager is not None and self.ui_manager.dialog is not None:
             if self.ui_manager.dialog.visible:
                 self.ui_manager.dialog.hide()

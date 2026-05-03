@@ -42,6 +42,8 @@ class ScriptExecutor:
         self._flags: dict[str, bool] = {}
         # 当前选中的选项索引（ChoiceCommand 回传）
         self._choice_result: int = -1
+        # 对话等待标志（DialogueCommand 用，DIALOGUE_NEXT 时清除）
+        self._waiting_dialogue: bool = False
 
     # ── 加载 ──────────────────────────────────────────────
 
@@ -62,6 +64,7 @@ class ScriptExecutor:
         self._running = False
         self._current = None
         self._flags.clear()
+        self._waiting_dialogue = False
 
         for idx, cmd in enumerate(self._commands):
             if isinstance(cmd, LabelCommand):
@@ -77,6 +80,7 @@ class ScriptExecutor:
         self._pc = 0
         self._running = True
         self._current = None
+        self._waiting_dialogue = False
         logger.debug("脚本开始执行")
 
     # ── 每帧驱动 ──────────────────────────────────────────
@@ -174,6 +178,12 @@ class ScriptExecutor:
         else:
             logger.error("跳转标签不存在: %s", label)
             self._running = False
+
+    # ── 对话回传 ──────────────────────────────────────────
+
+    def on_dialogue_next(self, **kwargs: Any) -> None:
+        """玩家点击推进对话时调用（由 DIALOGUE_NEXT 事件触发）。"""
+        self._waiting_dialogue = False
 
     # ── 选项回传 ──────────────────────────────────────────
 

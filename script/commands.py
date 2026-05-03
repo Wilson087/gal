@@ -106,7 +106,11 @@ class DialogueCommand(Command):
         game.events.emit(
             "dialogue", speaker=self.speaker, text=self.text, voice=self.voice,
         )
-        yield  # 等待点击推进
+        game.script_executor._waiting_dialogue = True
+        yield  # 第一帧：让 DialogBox 初始化打字机
+        # 等待玩家点击推进（由 ScriptExecutor._on_dialogue_next 清除标志）
+        while game.script_executor._waiting_dialogue:
+            yield
 
     def __repr__(self) -> str:
         return f"DialogueCommand({self.speaker!r}, {self.text[:20]!r})"
