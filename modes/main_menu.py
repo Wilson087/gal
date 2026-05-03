@@ -62,7 +62,7 @@ class MainMenu:
         height: int,
         resource_manager: Any = None,
         event_bus: EventBus | None = None,
-        font_name: str | None = None,
+        font_name: str | None = "Microsoft YaHei",
     ) -> None:
         self._batch = batch
         self._group = ui_group

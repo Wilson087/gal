@@ -25,6 +25,10 @@ from core.events import Event, EventBus, GameState
 logger = logging.getLogger(__name__)
 
 
+# ── 字体 ──────────────────────────────────────────────────────
+
+_FONT = "Microsoft YaHei"
+
 # ── 百分比定位 ────────────────────────────────────────────────
 
 def _pctx(pct: float, width: int) -> int:
@@ -253,7 +257,7 @@ class CGGallery:
             # 标题标签
             title = cg.get("title", "") if unlocked else "???"
             title_label = pyglet.text.Label(
-                title, font_size=12,
+                title, font_name=_FONT, font_size=12,
                 x=cx + cell_w // 2, y=cy - 16,
                 color=(200, 200, 200, 255) if unlocked else (100, 100, 100, 255),
                 anchor_x="center", anchor_y="top",
@@ -371,13 +375,13 @@ class CGGallery:
         # 导航箭头
         arrow_y = self._height // 2
         self._arrow_left = pyglet.text.Label(
-            "◀", font_size=36,
+            "◀", font_name=_FONT, font_size=36,
             x=_pctx(5, self._width), y=arrow_y,
             color=(255, 255, 255, 200),
             anchor_x="left", anchor_y="center",
         )
         self._arrow_right = pyglet.text.Label(
-            "▶", font_size=36,
+            "▶", font_name=_FONT, font_size=36,
             x=_pctx(95, self._width), y=arrow_y,
             color=(255, 255, 255, 200),
             anchor_x="right", anchor_y="center",
@@ -386,7 +390,7 @@ class CGGallery:
         # 标题
         self._title_label = pyglet.text.Label(
             f"{self._view_index + 1} / {len(self._cg_list)}  {cg.get('title', '')}",
-            font_size=16,
+            font_name=_FONT, font_size=16,
             x=self._width // 2, y=_pctx(5, self._height),
             color=(220, 220, 220, 255),
             anchor_x="center",
@@ -394,7 +398,7 @@ class CGGallery:
 
         # 返回提示
         self._back_hint = pyglet.text.Label(
-            "ESC / 点击空白返回", font_size=12,
+            "ESC / 点击空白返回", font_name=_FONT, font_size=12,
             x=_pctx(95, self._width), y=_pctx(95, self._height),
             color=(150, 150, 150, 255),
             anchor_x="right",
@@ -632,7 +636,7 @@ class MusicRoom:
             display_name = track.get("title", "???") if unlocked else "???"
             name_color = (255, 255, 255, 255) if unlocked else (100, 100, 100, 255)
             name_label = pyglet.text.Label(
-                display_name, font_size=18,
+                display_name, font_name=_FONT, font_size=18,
                 x=list_x + 16, y=row_y + self._ROW_H // 2,
                 color=name_color,
                 anchor_y="center",
@@ -642,7 +646,7 @@ class MusicRoom:
             # 播放/暂停图标
             icon_text = "▶" if unlocked else ""
             icon_label = pyglet.text.Label(
-                icon_text, font_size=16,
+                icon_text, font_name=_FONT, font_size=16,
                 x=list_x + list_w - 32, y=row_y + self._ROW_H // 2,
                 color=(180, 200, 180, 255),
                 anchor_x="right", anchor_y="center",
@@ -674,7 +678,7 @@ class MusicRoom:
 
         # 返回提示
         self._back_hint = pyglet.text.Label(
-            "ESC 返回", font_size=12,
+            "ESC 返回", font_name=_FONT, font_size=12,
             x=_pctx(95, self._width), y=_pctx(95, self._height),
             color=(150, 150, 150, 255),
             anchor_x="right",
@@ -969,7 +973,7 @@ class CharacterViewer:
                 batch=self._batch, group=self._group,
             )
             label = pyglet.text.Label(
-                name, font_size=14,
+                name, font_name=_FONT, font_size=14,
                 x=btn_x + btn_w // 2, y=btn_y + btn_h // 2,
                 color=(255, 255, 255, 255),
                 anchor_x="center", anchor_y="center",
@@ -989,7 +993,7 @@ class CharacterViewer:
         for part_name in parts:
             # 部件名称标签
             part_label = pyglet.text.Label(
-                part_name, font_size=14,
+                part_name, font_name=_FONT, font_size=14,
                 x=part_btn_x + 8, y=part_btn_y - 10,
                 color=(200, 200, 200, 255),
                 batch=self._batch, group=self._group,
@@ -999,7 +1003,7 @@ class CharacterViewer:
             variants = parts.get(part_name, [])
             current_variant = variants[idx].split("/")[-1] if idx < len(variants) else "—"
             variant_label = pyglet.text.Label(
-                current_variant, font_size=12,
+                current_variant, font_name=_FONT, font_size=12,
                 x=part_btn_x + _pctx(8, self._width), y=part_btn_y - 10,
                 color=(150, 150, 150, 255),
                 batch=self._batch, group=self._group,
@@ -1011,7 +1015,7 @@ class CharacterViewer:
                 batch=self._batch, group=self._group,
             )
             cycle_label = pyglet.text.Label(
-                "切换 ▶", font_size=12,
+                "切换 ▶", font_name=_FONT, font_size=12,
                 x=part_btn_x + btn_w // 2, y=part_btn_y - 16,
                 color=(255, 255, 255, 255),
                 anchor_x="center", anchor_y="center",
@@ -1033,7 +1037,7 @@ class CharacterViewer:
             batch=self._batch, group=self._group,
         )
         self._screenshot_label = pyglet.text.Label(
-            "截图保存", font_size=14,
+            "截图保存", font_name=_FONT, font_size=14,
             x=ss_x + btn_w // 2, y=ss_y + 18,
             color=(255, 255, 255, 255),
             anchor_x="center", anchor_y="center",
@@ -1042,7 +1046,7 @@ class CharacterViewer:
 
         # 状态标签
         self._status_label = pyglet.text.Label(
-            "", font_size=12,
+            "", font_name=_FONT, font_size=12,
             x=ss_x + btn_w + 16, y=ss_y + 18,
             color=(180, 180, 180, 255),
             anchor_y="center",
@@ -1051,7 +1055,7 @@ class CharacterViewer:
 
         # 返回提示
         self._back_hint = pyglet.text.Label(
-            "ESC 返回  点击部件切换", font_size=12,
+            "ESC 返回  点击部件切换", font_name=_FONT, font_size=12,
             x=_pctx(95, self._width), y=_pctx(95, self._height),
             color=(150, 150, 150, 255),
             anchor_x="right",

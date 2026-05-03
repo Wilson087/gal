@@ -151,6 +151,7 @@ class Game:
             event_bus=self.events,
             audio_manager=self.audio,
             window=window,
+            font_name="Microsoft YaHei",
         )
         self.register("ui_manager", self.ui_manager)
         logger.info("Layer 10: LayerManager + UIManager 已初始化")

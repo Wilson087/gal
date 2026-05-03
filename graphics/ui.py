@@ -998,23 +998,24 @@ class UIManager:
         event_bus: EventBus,
         audio_manager: Any = None,
         window: Any = None,
+        font_name: str = "Microsoft YaHei",
     ) -> None:
         self._width = width
         self._height = height
         self._event_bus = event_bus
 
-        # 创建 4 个 UI 组件
+        # 创建 4 个 UI 组件（显式传入 font_name 以避免 DirectWrite bug）
         self.dialog = DialogBox(
-            batch, ui_group, width, height, event_bus=event_bus,
+            batch, ui_group, width, height, font_name=font_name, event_bus=event_bus,
         )
         self.choice = ChoiceMenu(
-            batch, ui_group, width, height, event_bus=event_bus,
+            batch, ui_group, width, height, font_name=font_name, event_bus=event_bus,
         )
         self.backlog = BacklogViewer(
-            batch, ui_group, width, height,
+            batch, ui_group, width, height, font_name=font_name,
         )
         self.settings = SettingsPanel(
-            batch, ui_group, width, height,
+            batch, ui_group, width, height, font_name=font_name,
             audio_manager=audio_manager, window=window,
         )
 
