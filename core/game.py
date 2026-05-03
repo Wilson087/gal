@@ -55,7 +55,7 @@ class Game:
         # ai 到低在干嘛，强耦合也写 Any
         # 全部 Any 注解也是气笑了
 
-        # ai 你为了通过状态检查这样敷衍的写有意思吗？
+        # ai 你为了通过静态检查这样敷衍的写有意思吗？
 
         # ── 子系统占位（Layer 顺序） ──────────────────────
         # self.resource_manager: Any = None        # Layer 1
