@@ -6,8 +6,10 @@ Script Commands — 命令抽象基类 + 11 种具体命令
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Generator
+from typing import TYPE_CHECKING, Any, Generator
 
+if TYPE_CHECKING:
+    from core.game import Game
 
 class Command(ABC):
     """脚本命令抽象基类。
@@ -19,7 +21,7 @@ class Command(ABC):
     blocking: bool = True
 
     @abstractmethod
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         """执行命令，可 yield 暂停等待下一帧。"""
         yield  # pragma: no cover
 
@@ -32,7 +34,7 @@ class SceneCommand(Command):
     def __init__(self, scene_id: str) -> None:
         self.scene_id = scene_id
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit("scene_start", scene_id=self.scene_id)
         yield
 
@@ -48,7 +50,7 @@ class BGMCommand(Command):
     def __init__(self, track: str) -> None:
         self.track = track
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit("audio:bgm", track=self.track)
         yield
 
@@ -66,7 +68,7 @@ class ShowCommand(Command):
         self.pose = pose
         self.position = position
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit(
             "show", char=self.char, pose=self.pose, position=self.position,
         )
@@ -84,7 +86,7 @@ class HideCommand(Command):
     def __init__(self, char: str) -> None:
         self.char = char
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit("hide", char=self.char)
         yield
 
@@ -102,7 +104,7 @@ class DialogueCommand(Command):
         self.text = text
         self.voice = voice
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit(
             "dialogue", speaker=self.speaker, text=self.text, voice=self.voice,
         )
@@ -133,13 +135,19 @@ class ChoiceCommand(Command):
             raise ValueError("ChoiceCommand 至少需要一个选项")
         self.choices = choices
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         choice_data = [
             {"text": text, "action": action, "label": label}
             for text, action, label in self.choices
         ]
         game.events.emit("choice", options=choice_data)
+        
+        game.script_executor._waiting_choice = True
+
         yield  # 等待玩家选择，UI 回传后由 executor 处理跳转
+
+        while game.script_executor._waiting_choice:
+            yield
 
     def __repr__(self) -> str:
         return f"ChoiceCommand(choices={len(self.choices)})"
@@ -153,7 +161,7 @@ class LabelCommand(Command):
     def __init__(self, label: str) -> None:
         self.label = label
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         yield
 
     def __repr__(self) -> str:
@@ -168,7 +176,7 @@ class JumpCommand(Command):
     def __init__(self, label: str) -> None:
         self.label = label
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit("jump", label=self.label)
         yield
 
@@ -185,7 +193,7 @@ class FlagCommand(Command):
         self.name = name
         self.value = value
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         if game.variable_bank is not None:
             game.variable_bank[self.name] = self.value
         yield
@@ -202,7 +210,7 @@ class IfCommand(Command):
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         yield
 
     def __repr__(self) -> str:
@@ -214,7 +222,7 @@ class EndCommand(Command):
 
     blocking = True
 
-    def execute(self, game: Any) -> Generator[None, None, None]:
+    def execute(self, game: Game) -> Generator[None, None, None]:
         game.events.emit("scene_end")
         yield
 

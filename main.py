@@ -13,6 +13,7 @@ from typing import Optional
 
 import pyglet
 from pyglet.window import key
+from pyglet.window import mouse
 
 from config import AppConfig
 from core.events import Event
@@ -56,7 +57,7 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
         )
         self.set_minimum_size(640, 360)
 
-        self._config: AppConfig = config
+        self._app_config: AppConfig = config
         self._game: Game = Game(config)
 
         # 初始化所有子系统
@@ -116,7 +117,7 @@ class GameWindow(pyglet.window.Window):  # type: ignore[misc]
         self, x: int, y: int, button: int, modifiers: int
     ) -> None:
         """鼠标点击 — 左键转发到 Game.on_click。"""
-        if button == pyglet.window.mouse.LEFT:
+        if button == mouse.LEFT:
             self._game.on_click(x, y)
 
     def on_mouse_scroll(

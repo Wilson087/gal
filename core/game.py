@@ -28,6 +28,7 @@ import pyglet
 from config import AppConfig
 from .events import EventBus, Event, GameState
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,22 +52,27 @@ class Game:
         self.flags: dict[str, bool] = {}
         self.variable_bank: dict[str, object] = {}
 
+        # ai 到低在干嘛，强耦合也写 Any
+        # 全部 Any 注解也是气笑了
+
+        # ai 你为了通过状态检查这样敷衍的写有意思吗？
+
         # ── 子系统占位（Layer 顺序） ──────────────────────
-        self.resource_manager: Any = None        # Layer 1
-        self.audio: Any = None                   # Layer 2
-        self.save_system: Any = None             # Layer 3
-        self.script_executor: Any = None         # Layer 4
-        self.scene_manager: Any = None           # Layer 5
+        # self.resource_manager: Any = None        # Layer 1
+        # self.audio: Any = None                   # Layer 2
+        # self.save_system: Any = None             # Layer 3
+        # self.script_executor: Any = None         # Layer 4
+        self.scene_manager: Any = None           # Layer 5 这些有用吗
         self.character_manager: Any = None       # Layer 6
         self.dialogue_system: Any = None         # Layer 7
         self.choice_system: Any = None           # Layer 8
         self.effect_system: Any = None           # Layer 9
-        self.ui_manager: Any = None              # Layer 10
-        self.layers: Any = None                  # Layer 10
+        # self.ui_manager: Any = None              # Layer 10
+        # self.layers: Any = None                  # Layer 10
 
         # ── 鉴赏模式 ────────────────────────────────────
-        self.cg_gallery: Any = None
-        self.music_room: Any = None
+        # self.cg_gallery: Any = None
+        # self.music_room: Any = None
         self.character_viewer: Any = None
         self.main_menu: Any = None
 
@@ -543,7 +549,7 @@ class Game:
     def _return_to_title(self) -> None:
         """返回标题画面。"""
         if self.script_executor is not None and self.script_executor.running:
-            self.script_executor.running = False
+            self.script_executor.running = False # 这里原本有问题，结果 ai 全写 Any 静态检查器检查不出来
         if self.audio is not None:
             self.audio.stop_bgm(fade_out=1.0)
         self._hide_all_galleries()
@@ -574,8 +580,8 @@ class Game:
         if self.script_executor is None:
             logger.error("标题画面启动失败: script_executor 未初始化")
             return
+        script_path = f"{self.config.script_root}/title.ws"
         try:
-            script_path = f"{self.config.script_root}/title.ws"
             self.script_executor.load(script_path)
             self.script_executor.start()
             logger.info("标题画面脚本已启动")

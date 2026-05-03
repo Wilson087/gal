@@ -35,15 +35,17 @@ class ScriptExecutor:
         self._pc: int = 0
         self._labels: dict[str, int] = {}
         self._current: Generator[None, None, None] | None = None
-        self._running: bool = False
+        self.running: bool = False
         self._max_advance: int = MAX_SCRIPT_ADVANCE
 
         # 运行时标志
         self._flags: dict[str, bool] = {}
         # 当前选中的选项索引（ChoiceCommand 回传）
-        self._choice_result: int = -1
+        self._choice_result: int = -1 # ai 写这个属性干嘛的都没用到
         # 对话等待标志（DialogueCommand 用，DIALOGUE_NEXT 时清除）
         self._waiting_dialogue: bool = False
+
+        self._waiting_choice: bool = False
 
     # ── 加载 ──────────────────────────────────────────────
 
@@ -56,12 +58,12 @@ class ScriptExecutor:
         Raises:
             FileNotFoundError: 文件不存在。
         """
-        if self._running:
+        if self.running:
             logger.warning("加载新脚本时将中止正在执行的脚本: %s", filepath)
         self._commands = parse(filepath)
         self._labels.clear()
         self._pc = 0
-        self._running = False
+        self.running = False
         self._current = None
         self._flags.clear()
         self._waiting_dialogue = False
@@ -78,7 +80,7 @@ class ScriptExecutor:
     def start(self) -> None:
         """开始 / 重新开始执行脚本。"""
         self._pc = 0
-        self._running = True
+        self.running = True
         self._current = None
         self._waiting_dialogue = False
         logger.debug("脚本开始执行")
@@ -91,7 +93,7 @@ class ScriptExecutor:
         最多连续执行 `_max_advance` 条非阻塞指令，
         遇到阻塞指令或协程时停止等待下一帧。
         """
-        if not self._running:
+        if not self.running:
             return
 
         # ── 驱动当前协程（如有） ───────────────────────────
@@ -103,19 +105,19 @@ class ScriptExecutor:
                 self._pc += 1
             except Exception:
                 logger.error("协程执行异常", exc_info=True)
-                self._running = False
+                self.running = False
             return  # 协程未完成 → 下一帧继续
 
         # ── 推进非阻塞指令 ────────────────────────────────
         advance_count = 0
-        while self._running and self._pc < len(self._commands):
+        while self.running and self._pc < len(self._commands):
             advance_count += 1
             if advance_count > self._max_advance:
                 logger.error(
                     "脚本执行超过 %d 条连续指令，强制停止（可能死循环）",
                     self._max_advance,
                 )
-                self._running = False
+                self.running = False
                 return
 
             cmd = self._commands[self._pc]
@@ -141,7 +143,7 @@ class ScriptExecutor:
                     self._current = cmd.execute(self._game)
                 except Exception:
                     logger.error("阻塞命令执行异常: %s", type(cmd).__name__, exc_info=True)
-                    self._running = False
+                    self.running = False
                 return
             else:
                 # 非阻塞命令：驱动协程到底
@@ -152,13 +154,13 @@ class ScriptExecutor:
                     pass
                 except Exception:
                     logger.error("非阻塞命令执行异常: %s", type(cmd).__name__, exc_info=True)
-                    self._running = False
+                    self.running = False
                     return
                 self._pc += 1
 
         # 脚本结束
         if self._pc >= len(self._commands):
-            self._running = False
+            self.running = False
             self._game.events.emit("scene_end")
             logger.debug("脚本执行完毕")
 
@@ -177,7 +179,7 @@ class ScriptExecutor:
             logger.debug("跳转到: %s (pc=%d)", label, self._pc)
         else:
             logger.error("跳转标签不存在: %s", label)
-            self._running = False
+            self.running = False
 
     # ── 对话回传 ──────────────────────────────────────────
 
@@ -207,12 +209,15 @@ class ScriptExecutor:
         else:
             logger.error("选项索引无效: %d (共 %d 个选项)", index, len(cmd.choices))
 
+        self._waiting_choice = False
+
     # ── 状态查询 ──────────────────────────────────────────
 
-    @property
-    def running(self) -> bool:
-        """脚本是否正在运行。"""
-        return self._running
+    # ai 也是神经，需要外部更改还设置成只读的
+    # @property 
+    # def running(self) -> bool:
+    #     """脚本是否正在运行。"""
+    #     return self._running
 
     @property
     def current_command(self) -> Command | None:
