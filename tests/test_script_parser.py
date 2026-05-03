@@ -16,7 +16,8 @@ class Forest(Scene):
 
 class Hello(Dialogue):
     def flow(self):
-        s =  self.scene(Forest)
+        # s =  self.scene(Forest)
+        self.scene = Forest
 
         f = self.persona(BrownFox)
         f.say("Hello!")
@@ -63,13 +64,14 @@ class TestScriptParser(unittest.TestCase):
         self.assertIn("dialogue", r)
         self.assertIsInstance(r["dialogue"], Sequence)
         flow = [
-            {"type": "scene", "params": {"id": 0, "scene": "Forest"}},
+            # {"type": "scene", "params": {"id": 0, "scene": "Forest"}},
+            {"type": "scene", "params": {"scene": "Forest"}},
             {"type": "persona", "params": {"id": 0,"persona": "BrownFox"}},
             {"type": "say", "params": {"id": 0, "text": "Hello!"}},
             {"type": "persona", "params": {"id": 1, "persona": "LazyDog"}},
             {"type": "say", "params": {"id": 1, "text": "Zzz..."}},
             {"type": "narration", "params": {"text": "The quick brown fox jumps over the lazy dog."}},
-            {"type": "del_scene", "params": {"id": 0}},
+            # {"type": "del_scene", "params": {"id": 0}},
             {"type": "del_persona", "params": {"id": 0}},
             {"type": "del_persona", "params": {"id": 1}}
         ]

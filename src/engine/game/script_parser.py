@@ -11,8 +11,8 @@ from collections import deque
 from collections.abc import Generator, Sequence, Mapping
 from enum import Enum, auto
 from itertools import count
-from typing import Any, Optional, Self
-from weakref import WeakSet, finalize
+from typing import Any, ClassVar, Optional, Self
+from weakref import WeakSet, WeakValueDictionary, finalize
 
 class BuildCommand(Enum):
     PUSH = auto()
@@ -85,10 +85,14 @@ class Persona(Data):
         out.send((BC.PUSH, ("color", self.color)))
         out.send((BC.BUILD, None))
 
+    # _personas: ClassVar[WeakValueDictionary[str, type[Persona]]]
+
+    # def __init_subclass__(cls) -> None:
+    #     cls._personas
+
 class Scene(Data):
     name: Optional[str] = None
 
-    _obj_id: int
     _dialogue: Dialogue
 
     def build(self, out: Generator[None, tuple[BuildCommand, Any], Any]) -> None:
@@ -130,40 +134,26 @@ class Dialogue(Data):
         self._personas.add(p)
         finalize(p, self._del_persona, _id)
         return p
-    
-    _scene_count: count[int]
-    _scenes: WeakSet[Scene]
 
-    def _del_scene(self, _id: int):
-        self._out.send((BC.PUSH, {
-            "type": "del_scene",
-            "params": {
-                "id": _id
-            }
-        }))
+    _scene: Scene
 
+    @property
+    def scene(self) -> Scene:
+        return self._scene
+
+    @scene.setter
     def scene(self, scene: type[Scene]):
-        if not self._scenes:
-            self._scene_count = count()
-
-        _id = next(self._scene_count)
-
         s = scene()
         s._dialogue = self
-        s._obj_id = _id
 
         self._out.send((BC.PUSH, {
             "type": "scene",
             "params": {
-                "id": _id,
                 "scene": scene.__name__,
             }
         }))
+        self._scene = s
 
-        self._scenes.add(s)
-        finalize(s, self._del_scene, _id)
-        return s
-    
     def narration(self, text: str):
         self._out.send((BC.PUSH, {
             "type": "narration",
@@ -181,8 +171,6 @@ class Dialogue(Data):
         out.send((BC.SEQ, None))
         self._persona_count = count()
         self._personas = WeakSet()
-        self._scene_count = count()
-        self._scenes = WeakSet()
         self._out = out
         self.flow()
         out.send((BC.BUILD, None))
@@ -192,3 +180,8 @@ class Dialogue(Data):
 
     def flow(self):
         pass
+
+    # _dialogues: ClassVar[WeakValueDictionary[str, type[Dialogue]]]
+
+    # def __init_subclass__(cls) -> None:
+    #     cls._dialogues[cls.__name__] = cls
