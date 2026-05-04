@@ -147,10 +147,6 @@ class CGGallery:
 
     def draw(self) -> None:
         """全屏查看时绘制遮罩和 CG 图像。"""
-        # 网格模式背景遮罩（位于 batch 之下）
-        if not self._viewing and self._grid_overlay is not None:
-            self._grid_overlay.draw()
-        # 全屏查看遮罩
         if self._viewing and self._overlay is not None:
             self._overlay.draw()
         if self._viewing and self._full_sprite is not None:
@@ -220,11 +216,36 @@ class CGGallery:
         """构建缩略图网格。"""
         self._cleanup_grid()
 
+        # 背景遮罩（放在 batch 中，位于网格项之下，使主菜单背景不抢眼）
+        self._grid_overlay = pyglet.shapes.Rectangle(
+            x=0, y=0, width=self._width, height=self._height,
+            color=(0, 0, 0),
+            batch=self._batch, group=self._group,
+        )
+        self._grid_overlay.opacity = 160
+
         start_x = _pctx(5, self._width)
         grid_w = _pctx(90, self._width)
         cell_w = (grid_w - (self._COLS - 1) * self._PADDING) // self._COLS
         cell_h = self._THUMB_H
-        y_base = self._height - _pctx(10, self._height)
+        y_base = _pctx(65, self._height)
+
+        if not self._cg_list:
+            self._grid_title = pyglet.text.Label(
+                "CG 画廊", font_name=_FONT, font_size=28,
+                x=self._width // 2, y=_pctx(92, self._height),
+                color=(220, 220, 240, 255),
+                anchor_x="center", anchor_y="center",
+                batch=self._batch, group=self._group,
+            )
+            self._grid_back_hint = pyglet.text.Label(
+                "ESC 返回", font_name=_FONT, font_size=12,
+                x=_pctx(95, self._width), y=_pctx(95, self._height),
+                color=(150, 150, 150, 255),
+                anchor_x="right",
+                batch=self._batch, group=self._group,
+            )
+            return
 
         for i, cg in enumerate(self._cg_list):
             unlocked = self._flags.get(cg.get("unlock_flag", ""), False)
@@ -288,17 +309,10 @@ class CGGallery:
         visible_h = self._height - _pctx(20, self._height)
         self._max_scroll = max(0.0, total_h - visible_h)
 
-        # 背景遮罩（手动绘制，让主菜单背景不抢眼）
-        self._grid_overlay = pyglet.shapes.Rectangle(
-            x=0, y=0, width=self._width, height=self._height,
-            color=(0, 0, 0),
-        )
-        self._grid_overlay.opacity = 160
-
         # 标题
         self._grid_title = pyglet.text.Label(
             "CG 画廊", font_name=_FONT, font_size=28,
-            x=self._width // 2, y=_pctx(93, self._height),
+            x=self._width // 2, y=_pctx(92, self._height),
             color=(220, 220, 240, 255),
             anchor_x="center", anchor_y="center",
             batch=self._batch, group=self._group,
@@ -320,7 +334,7 @@ class CGGallery:
         grid_w = _pctx(90, self._width)
         cell_w = (grid_w - (self._COLS - 1) * self._PADDING) // self._COLS
         cell_h = self._THUMB_H
-        y_base = self._height - _pctx(10, self._height)
+        y_base = _pctx(65, self._height)
 
         for i, item in enumerate(self._grid_items):
             col = i % self._COLS
@@ -788,6 +802,7 @@ class CharacterViewer:
     ) -> None:
         self._batch = batch
         self._group = ui_group
+        self._sprite_group: Group = pyglet.graphics.Group(order=3)  # FRONT 层，低于 UI
         self._width = width
         self._height = height
         self._rm = resource_manager
@@ -796,10 +811,12 @@ class CharacterViewer:
         self._characters: dict[str, dict[str, Any]] = {}
         self._current_char: str = ""
 
-        # 部件状态: { "eyes": 0, "mouth": 0, "body": 0 }  → 当前索引
+        # 部件状态: { "表情": 0, "服装": 0 }  → 当前索引
         self._part_selections: dict[str, int] = {}
-        # 部件 sprites: { "eyes": Sprite, ... }
-        self._part_sprites: dict[str, pyglet.sprite.Sprite | None] = {}
+        # 当前显示的部件名（只显示一个部件，不叠加）
+        self._active_part: str = ""
+        # 当前显示的 sprite
+        self._current_sprite: pyglet.sprite.Sprite | None = None
 
         # UI
         self._char_buttons: list[dict[str, Any]] = []
@@ -886,6 +903,9 @@ class CharacterViewer:
         parts = char_data.get("parts", {})
         for part_name in parts:
             self._part_selections[part_name] = 0
+        # 默认显示第一个部件
+        part_names = list(parts.keys())
+        self._active_part = part_names[0] if part_names else ""
 
     def _cycle_part(self, part_name: str) -> None:
         """切换指定部件的变体 (0 → 1 → 2 → ... → 0)。"""
@@ -898,73 +918,70 @@ class CharacterViewer:
             return
         current = self._part_selections.get(part_name, 0)
         self._part_selections[part_name] = (current + 1) % len(variants)
+        self._active_part = part_name
         self._refresh_part(part_name)
 
     # ── 显示更新 ──────────────────────────────────────────
 
     def _refresh_display(self) -> None:
-        """重建所有部件 sprite。"""
+        """显示当前角色的当前部件。只显示一个部件，不叠加。"""
         self._cleanup_sprites()
         char_data = self._characters.get(self._current_char)
         if char_data is None:
             return
 
-        center_x = self._width // 2
-        center_y = self._height // 2
         parts = char_data.get("parts", {})
+        # 确保 _active_part 有效
+        if self._active_part not in parts:
+            part_names = list(parts.keys())
+            self._active_part = part_names[0] if part_names else ""
+            if not self._active_part:
+                return
 
-        for part_name, variants in parts.items():
-            idx = self._part_selections.get(part_name, 0)
-            if idx < len(variants):
-                img_path = variants[idx]
-                img = self._rm.get_image(img_path)
-                if img is not None:
-                    try:
-                        sprite = pyglet.sprite.Sprite(
-                            img, x=center_x, y=center_y,
-                            batch=self._batch, group=self._group,
-                        )
-                        sprite.x = center_x - img.width / 2
-                        sprite.y = center_y - img.height / 2
-                        self._part_sprites[part_name] = sprite
-                    except Exception:
-                        self._part_sprites[part_name] = None
-                else:
-                    self._part_sprites[part_name] = None
-            else:
-                self._part_sprites[part_name] = None
+        self._load_sprite(self._active_part, self._part_selections.get(self._active_part, 0))
 
     def _refresh_part(self, part_name: str) -> None:
-        """刷新单个部件的 sprite。"""
-        existing = self._part_sprites.get(part_name)
-        if existing is not None:
-            existing.delete()
-            self._part_sprites[part_name] = None
+        """刷新指定部件的 sprite（切换变体）。"""
+        self._cleanup_sprites()
+        char_data = self._characters.get(self._current_char)
+        if char_data is None:
+            return
+        idx = self._part_selections.get(part_name, 0)
+        self._load_sprite(part_name, idx)
 
+    def _load_sprite(self, part_name: str, variant_idx: int) -> None:
+        """加载指定部件的指定变体为当前 sprite。"""
         char_data = self._characters.get(self._current_char)
         if char_data is None:
             return
         parts = char_data.get("parts", {})
         variants = parts.get(part_name, [])
-        idx = self._part_selections.get(part_name, 0)
-        if idx >= len(variants):
+        if variant_idx >= len(variants):
             return
 
         center_x = self._width // 2
         center_y = self._height // 2
-        img_path = variants[idx]
+        img_path = variants[variant_idx]
         img = self._rm.get_image(img_path)
-        if img is not None:
-            try:
-                sprite = pyglet.sprite.Sprite(
-                    img, x=center_x, y=center_y,
-                    batch=self._batch, group=self._group,
-                )
-                sprite.x = center_x - img.width / 2
-                sprite.y = center_y - img.height / 2
-                self._part_sprites[part_name] = sprite
-            except Exception:
-                pass
+        if img is None:
+            return
+
+        sprite: pyglet.sprite.Sprite | None = None
+        try:
+            sprite = pyglet.sprite.Sprite(
+                img, x=center_x, y=center_y,
+                batch=self._batch, group=self._sprite_group,
+            )
+            sprite.x = center_x - img.width / 2
+            sprite.y = center_y - img.height / 2
+        except Exception:
+            if sprite is not None:
+                try:
+                    sprite.delete()
+                except Exception:
+                    pass
+                sprite = None
+        self._current_sprite = sprite
 
     # ── 截图 ──────────────────────────────────────────────
 
@@ -1052,33 +1069,26 @@ class CharacterViewer:
         parts = char_data.get("parts", {})
 
         for part_name in parts:
-            # 部件名称标签
-            part_label = pyglet.text.Label(
-                part_name, font_name=_FONT, font_size=14,
-                x=part_btn_x + 8, y=part_btn_y - 10,
-                color=(200, 200, 200, 255),
-                batch=self._batch, group=self._group,
-            )
             # 当前变体名称
             idx = self._part_selections.get(part_name, 0)
             variants = parts.get(part_name, [])
             current_variant = variants[idx].split("/")[-1] if idx < len(variants) else "—"
             variant_label = pyglet.text.Label(
                 current_variant, font_name=_FONT, font_size=12,
-                x=part_btn_x + 8, y=part_btn_y - 28,
+                x=part_btn_x + 8, y=part_btn_y - 10,
                 width=btn_w - 16,
                 color=(150, 150, 150, 255),
                 batch=self._batch, group=self._group,
             )
             # 切换按钮
             cycle_btn = pyglet.shapes.Rectangle(
-                x=part_btn_x, y=part_btn_y - 48, width=btn_w, height=24,
+                x=part_btn_x, y=part_btn_y - 30, width=btn_w, height=24,
                 color=self._BUTTON_COLOR,
                 batch=self._batch, group=self._group,
             )
             cycle_label = pyglet.text.Label(
                 "切换 ▶", font_name=_FONT, font_size=12,
-                x=part_btn_x + btn_w // 2, y=part_btn_y - 36,
+                x=part_btn_x + btn_w // 2, y=part_btn_y - 18,
                 color=(255, 255, 255, 255),
                 anchor_x="center", anchor_y="center",
                 batch=self._batch, group=self._group,
@@ -1086,9 +1096,8 @@ class CharacterViewer:
             self._part_buttons.append({
                 "rect": cycle_btn, "label": cycle_label,
                 "part": part_name, "variant_label": variant_label,
-                "name_label": part_label,
             })
-            part_btn_y -= 60
+            part_btn_y -= 40
 
         # 截图按钮
         ss_x = _pctx(2, self._width)
@@ -1125,14 +1134,17 @@ class CharacterViewer:
         )
 
     def _cleanup_sprites(self) -> None:
-        """清理所有部件 sprite。"""
-        for sprite in self._part_sprites.values():
-            if sprite is not None:
-                sprite.delete()
-        self._part_sprites.clear()
+        """清理当前 sprite。"""
+        if self._current_sprite is not None:
+            try:
+                self._current_sprite.delete()
+            except Exception:
+                pass
+            self._current_sprite = None
 
     def _cleanup_ui(self) -> None:
         """清理所有 UI 对象。"""
+        self._cleanup_sprites()
         for btn_list in (self._char_buttons, self._part_buttons):
             for btn in btn_list:
                 for key in ("rect", "label", "variant_label", "name_label"):
