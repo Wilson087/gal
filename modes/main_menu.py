@@ -9,7 +9,7 @@ Main Menu — 视觉主菜单
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TypedDict
 
 import pyglet.shapes
 import pyglet.text
@@ -47,6 +47,11 @@ _COLOR_ACCENT = (180, 200, 255)
 _ALPHA_BTN = 200
 _ALPHA_HIGHLIGHT = 230
 
+class _Button(TypedDict):
+    rect: pyglet.shapes.Rectangle
+    label: pyglet.text.Label
+    accent: pyglet.shapes.Rectangle
+    tag: str
 
 class MainMenu:
     """标题画面主菜单。
@@ -77,7 +82,7 @@ class MainMenu:
         # 按钮状态
         self._selected_index: int = 0
         self._hover_index: int = -1
-        self._buttons: list[dict[str, Any]] = []
+        self._buttons: list[_Button] = []
 
         # pyglet 对象
         self._overlay: pyglet.shapes.Rectangle | None = None
@@ -90,7 +95,7 @@ class MainMenu:
     def show(self) -> None:
         """显示主菜单。"""
         self._visible = True
-        self._selected_index = 0
+        self._selected_index = -1
         self._hover_index = -1
         self._build_ui()
 
@@ -147,6 +152,7 @@ class MainMenu:
     def handle_mouse_motion(self, x: float, y: float) -> None:
         """鼠标移动 —— 更新悬停索引。"""
         self._hover_index = -1
+        self._selected_index = -1
         for i, btn in enumerate(self._buttons):
             rect = btn.get("rect")
             if rect is None:

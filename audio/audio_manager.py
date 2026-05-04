@@ -265,7 +265,9 @@ class AudioManager:
         # 取消旧淡出
         self._cancel_fade()
 
-        self._fade_start_vol = self._bgm_player.volume  # type: ignore[assignment]
+        assert isinstance(self._bgm_player.volume, float) # 注意：遇到第三方库注解不全的，先用断言，实在不行才用忽略
+
+        self._fade_start_vol = self._bgm_player.volume 
         self._fade_elapsed = 0.0
         self._fade_duration = duration
         self._fade_active = True
@@ -305,14 +307,14 @@ class AudioManager:
             def _on_bgm_eos() -> None:
                 self._emit(_EVT_BGM_END, channel="bgm", reason="eos")
 
-            self._bgm_player.on_eos = _on_bgm_eos  # type: ignore[method-assign]
+            self._bgm_player.on_eos = _on_bgm_eos  
 
         if self._voice_player is not None:
 
             def _on_voice_eos() -> None:
                 self._emit(_EVT_VOICE_END, channel="voice")
 
-            self._voice_player.on_eos = _on_voice_eos  # type: ignore[method-assign]
+            self._voice_player.on_eos = _on_voice_eos
 
     # ── 设备检测 ──────────────────────────────────────────
 

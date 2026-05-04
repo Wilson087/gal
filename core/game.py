@@ -53,17 +53,12 @@ class Game:
         self.flags: dict[str, bool] = {}
         self.variable_bank: dict[str, object] = {}
 
-        # ── 子系统（在 init_subsystems 中赋值） ──────────
-        self.resource_manager: Any = None
-        self.audio: Any = None
-        self.save_system: Any = None
-        self.script_executor: Any = None
-        self.layers: Any = None
-        self.ui_manager: Any = None
-        self.cg_gallery: Any = None
-        self.music_room: Any = None
-        self.character_viewer: Any = None
-        self.main_menu: Any = None
+        # ai 到低在干嘛，强耦合也写 Any
+        # 全部 Any 注解也是气笑了
+        # ai 你为了通过静态检查这样敷衍的写有意思吗？
+
+        # ai 你s逼吧 把注释掉的又给弄回来
+        # 为什么注释 还不是全 Any 一点用都没有
 
         # ── 角色立绘追踪 ──────────────────────────────
         self._char_sprites: dict[str, Any] = {}
@@ -118,30 +113,30 @@ class Game:
         from modes.main_menu import MainMenu
 
         # ── Layer 1: 资源管理器 ──────────────────────────
-        self.resource_manager = ResourceManager(self.config.resource_root)
+        self.resource_manager: ResourceManager = ResourceManager(self.config.resource_root)
         self.register("resource_manager", self.resource_manager)
         logger.info("Layer 1: ResourceManager 已初始化")
 
         # ── Layer 2: 音频 ────────────────────────────────
-        self.audio = AudioManager(event_bus=self.events)
+        self.audio: AudioManager = AudioManager(event_bus=self.events)
         self.register("audio", self.audio)
         logger.info("Layer 2: AudioManager 已初始化")
 
         # ── Layer 3: 存档 ────────────────────────────────
-        self.save_system = SaveSystem(save_root=self.config.save_path)
+        self.save_system: SaveSystem = SaveSystem(save_root=self.config.save_path)
         self.register("save_system", self.save_system)
         logger.info("Layer 3: SaveSystem 已初始化")
 
         # ── Layer 4: 脚本执行器 ──────────────────────────
-        self.script_executor = ScriptExecutor(self)
+        self.script_executor: ScriptExecutor = ScriptExecutor(self)
         self.register("script_executor", self.script_executor)
         logger.info("Layer 4: ScriptExecutor 已初始化")
 
         # ── Layer 10: 图层管理器 + UI ────────────────────
-        self.layers = LayerManager(self.config.width, self.config.height)
+        self.layers: LayerManager = LayerManager(self.config.width, self.config.height)
         self.register("layers", self.layers)
 
-        self.ui_manager = UIManager(
+        self.ui_manager: UIManager = UIManager(
             batch=self.layers.batch,
             ui_group=self.layers.get_group(Layer.UI),
             width=self.config.width,
@@ -155,7 +150,7 @@ class Game:
         logger.info("Layer 10: LayerManager + UIManager 已初始化")
 
         # ── 鉴赏模式 ─────────────────────────────────────
-        self.cg_gallery = CGGallery(
+        self.cg_gallery: CGGallery = CGGallery(
             batch=self.layers.batch,
             ui_group=self.layers.get_group(Layer.UI),
             width=self.config.width,
@@ -168,7 +163,7 @@ class Game:
         self.cg_gallery.load_config()
         self.register("cg_gallery", self.cg_gallery)
 
-        self.music_room = MusicRoom(
+        self.music_room: MusicRoom = MusicRoom(
             batch=self.layers.batch,
             ui_group=self.layers.get_group(Layer.UI),
             width=self.config.width,
@@ -181,7 +176,7 @@ class Game:
         self.music_room.load_config()
         self.register("music_room", self.music_room)
 
-        self.character_viewer = CharacterViewer(
+        self.character_viewer: CharacterViewer = CharacterViewer(
             batch=self.layers.batch,
             ui_group=self.layers.get_group(Layer.UI),
             width=self.config.width,
@@ -193,7 +188,7 @@ class Game:
         self.register("character_viewer", self.character_viewer)
 
         # ── 主菜单 ───────────────────────────────────────
-        self.main_menu = MainMenu(
+        self.main_menu: MainMenu = MainMenu(
             batch=self.layers.batch,
             ui_group=self.layers.get_group(Layer.UI),
             width=self.config.width,

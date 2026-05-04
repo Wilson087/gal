@@ -350,7 +350,7 @@ class ChoiceMenu(UIElement):
         """
         if choices is not None:
             self._choices = choices
-        self._selected_index = 0
+        self._selected_index = -1
         self._hover_index = -1
         self._visible = True
         self._build_buttons()
@@ -402,6 +402,7 @@ class ChoiceMenu(UIElement):
     def handle_mouse_motion(self, x: float, y: float) -> None:
         """鼠标移动 —— 更新悬停索引。"""
         self._hover_index = -1
+        self._selected_index = -1
         for i, (rect, _label) in enumerate(self._buttons):
             if (
                 rect.x <= x <= rect.x + rect.width
