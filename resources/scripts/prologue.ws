@@ -64,13 +64,18 @@
 "第二天放学后。"
 @if agreed_walk
 "校门口，穹已经等在那里，看到我时脸上露出了灿烂的笑容。"
+@if agreed_walk
 @show 春日野穹 校服-M at center
+@if agreed_walk
 @jump walk_scene
 
 @if declined_walk
 "我刚走出教室，就看到穹抱着一叠书迎面走来。"
+@if declined_walk
 "春日野穹" "前辈！刚好碰到你，帮我拿一下好吗？"
+@if declined_walk
 "你" "当然可以。"
+@if declined_walk
 @jump walk_scene
 
 @label walk_scene

@@ -194,8 +194,7 @@ class FlagCommand(Command):
         self.value = value
 
     def execute(self, game: Game) -> Generator[None, None, None]:
-        if game.variable_bank is not None:
-            game.variable_bank[self.name] = self.value
+        game.script_executor._flags[self.name] = self.value
         yield
 
     def __repr__(self) -> str:
