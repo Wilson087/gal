@@ -80,7 +80,7 @@ class MainMenu:
         self._visible = False
 
         # 按钮状态
-        self._selected_index: int = 0
+        self._selected_index: int = -1
         self._hover_index: int = -1
         self._buttons: list[_Button] = []
 
@@ -281,5 +281,5 @@ class MainMenu:
                 if obj is not None:
                     obj.delete()
         self._buttons.clear()
-        self._selected_index = 0
+        self._selected_index = -1
         self._hover_index = -1
