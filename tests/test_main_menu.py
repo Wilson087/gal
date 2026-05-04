@@ -59,7 +59,7 @@ def test_menu_show_hide(
     menu = MainMenu(mock_batch, mock_group, 1280, 720)
     menu.show()
     assert menu._visible is True
-    assert menu._selected_index == 0
+    assert menu._selected_index == -1
     assert menu._hover_index == -1
     assert len(menu._buttons) == 7
     menu.hide()
