@@ -32,7 +32,6 @@ from .events import EventBus, Event, GameState
 
 logger = logging.getLogger(__name__)
 
-
 class Game:
     """引擎中枢 —— 持有事件总线和所有子系统引用。
 
@@ -59,6 +58,8 @@ class Game:
 
         # ai 你s逼吧 把注释掉的又给弄回来
         # 为什么注释 还不是全 Any 一点用都没有
+
+        # ai 你不许删掉这些注释 :(
 
         # ── 角色立绘追踪 ──────────────────────────────
         self._char_sprites: dict[str, Any] = {}
