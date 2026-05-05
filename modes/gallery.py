@@ -1036,7 +1036,7 @@ class CharacterViewer:
 
         # 角色选择按钮
         btn_x = _pctx(2, self._width)
-        btn_y = self._height - _pctx(5, self._height)
+        btn_y = self._height - _pctx(15, self._height)
         btn_w = _pctx(14, self._width)
         btn_h = 36
 
@@ -1075,7 +1075,7 @@ class CharacterViewer:
             current_variant = variants[idx].split("/")[-1] if idx < len(variants) else "—"
             variant_label = pyglet.text.Label(
                 current_variant, font_name=_FONT, font_size=12,
-                x=part_btn_x + 8, y=part_btn_y - 10,
+                x=part_btn_x + 8, y=part_btn_y - 5,
                 width=btn_w - 16,
                 color=(150, 150, 150, 255),
                 batch=self._batch, group=self._group,
@@ -1097,7 +1097,7 @@ class CharacterViewer:
                 "rect": cycle_btn, "label": cycle_label,
                 "part": part_name, "variant_label": variant_label,
             })
-            part_btn_y -= 40
+            part_btn_y -= 50
 
         # 截图按钮
         ss_x = _pctx(2, self._width)
