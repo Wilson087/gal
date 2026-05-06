@@ -1116,6 +1116,11 @@ class UIManager:
                 return
             return
 
+        # Backlog: 对话可见时 ↑ 打开回看
+        if symbol == _key.UP and self.dialog.visible and not self.backlog.visible:
+            self.backlog.show(self.dialog.get_history())
+            return
+
         # ChoiceMenu 键盘导航
         if self.choice.visible:
             if symbol == _key.UP:

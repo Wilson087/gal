@@ -3,6 +3,8 @@
 ==============
 所有测试文件共用同一套 pyglet / PIL mock，
 注入 sys.modules，避免跨文件 mock 冲突。
+
+在需要 mock 的测试文件中通过 ``import tests._mocks`` 引入。
 """
 
 import sys

@@ -275,7 +275,7 @@ pytest tests/ -v
 
 - **Python 3.10+**
 - **mypy `--strict` 零错误**（14 source files）
-- **126 个单元测试**：event_bus(7) + resource(13) + sprite_actor(17) + layer(13) + audio(14) + script(22) + save(13) + ui(27)
+- **130 个单元测试**（unittest）：event_bus(7) + audio(14) + resource(13) + sprite_actor(16) + layer(13) + save(13) + script(20) + ui(27) + main_menu(7)
 - 全部测试 mock 掉 pyglet / PIL，CI 可跑
 
 ## License

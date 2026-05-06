@@ -110,8 +110,8 @@ class Game:
         from script.executor import ScriptExecutor
         from graphics.layer import LayerManager, Layer
         from graphics.ui import UIManager
-        from modes.gallery import CGGallery, MusicRoom, CharacterViewer
-        from modes.main_menu import MainMenu
+        from graphics.gallery import CGGallery, MusicRoom, CharacterViewer
+        from graphics.main_menu import MainMenu
 
         # ── Layer 1: 资源管理器 ──────────────────────────
         self.resource_manager: ResourceManager = ResourceManager(self.config.resource_root)
