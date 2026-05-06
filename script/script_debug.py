@@ -109,7 +109,7 @@ class _ByteCode(NamedTuple):
     code: str
     arg: int
 
-RESUME = lambda x=0: ByteCode("RESUME", 0)
+RESUME = lambda x=0: ByteCode("RESUME", x)
 
 COPY = lambda x=0: ByteCode("COPY", x)
 
@@ -148,7 +148,7 @@ class Command:
     def _build(self) -> Generator[tuple[Code, _Location]]:
         yield LoadConst(self.param), self.c_l
         yield YIELD_VALUE(), self.p_l
-        yield RESUME(), (self.c_l[0], 0, self.c_l[2], 0)
+        yield RESUME(1), (self.c_l[0], 0, self.c_l[2], 0)
 
     def build(self, flow: Flow) -> Generator[tuple[Code, _Location]]:
         yield from self._build()
@@ -398,7 +398,7 @@ class Flow:
         self._if_conversion(codes)
 
         l = codes[0][1]
-        codes.extendleft(reversed(self._code_conversion((RESUME(), l))))
+        codes.extendleft(reversed(self._code_conversion((RESUME(0), l))))
         l = codes[-1][1]
         codes.extend(reversed(self._code_conversion((
             RETURN_CONST(get_const_index(None)),
