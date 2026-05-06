@@ -545,8 +545,8 @@ class Parser:
         )
 
     def _choice_line(self) -> Optional[Token | tuple[str, str, str]]:
-        t = self._lexer.peek()
-        if not self._is_literal(t):
+        t = self._lexer.peek(None)
+        if t is None or not self._is_literal(t):
             return
         text = self._lexer.next().value
         text_token = t
