@@ -3,6 +3,8 @@
 from .sprite_actor import SpriteActor, linear, ease_in_out_quad
 from .layer import LayerManager, Layer
 from .ui import UIManager, DialogBox, ChoiceMenu, BacklogViewer, SettingsPanel
+from .gallery import CGGallery, MusicRoom, CharacterViewer
+from .main_menu import MainMenu
 
 __all__ = [
     "SpriteActor",
@@ -15,4 +17,8 @@ __all__ = [
     "ChoiceMenu",
     "BacklogViewer",
     "SettingsPanel",
+    "CGGallery",
+    "MusicRoom",
+    "CharacterViewer",
+    "MainMenu",
 ]
