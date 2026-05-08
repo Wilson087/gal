@@ -646,8 +646,8 @@ class Parser:
         speaker = ""
         text = token.value
         
-        t = self._lexer.peek()
-        if self._is_literal(t):
+        t = self._lexer.peek(None)
+        if t is not None and self._is_literal(t):
             speaker = text
             text = self._lexer.next().value
 

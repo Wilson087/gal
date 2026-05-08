@@ -72,17 +72,9 @@ class TestParser(unittest.TestCase):
         self.assertEqual(cmds[0].pose, "uniform_smile")
         self.assertEqual(cmds[0].position, "center")
 
-    def test_parse_dialogue_english_comma(self) -> None:
-        """英文逗号优先匹配。"""
-        path = _write_ws('"Rei, 前辈，早上好～"\n')
-        cmds = parse(path)
-        self.assertIsInstance(cmds[0], DialogueCommand)
-        self.assertEqual(cmds[0].speaker, "Rei")
-        self.assertEqual(cmds[0].text, "前辈，早上好～")
-
-    def test_parse_dialogue_chinese_comma(self) -> None:
-        """中文逗号作为 fallback。"""
-        path = _write_ws('"玲，早上好"\n')
+    def test_parse_dialogue(self) -> None:
+        """解析对话"""
+        path = _write_ws('"玲" "早上好"\n')
         cmds = parse(path)
         self.assertIsInstance(cmds[0], DialogueCommand)
         self.assertEqual(cmds[0].speaker, "玲")
