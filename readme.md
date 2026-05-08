@@ -9,37 +9,41 @@
 ├── config.py                  # 全局常量 + AppConfig dataclass
 ├── main.py                    # GameWindow 入口（vsync / 60fps / 焦点暂停）
 ├── core/
-│   ├── events.py              # Event 枚举 + GameState 枚举 + EventBus
+│   ├── events.py              # Event 枚举 + GameState 枚举 + EventBus（弱引用）
 │   ├── game.py                # Game 中枢 — 12 子系统 + 状态机分发
 │   └── state.py               # SaveData / CharEntry 存档数据容器
 ├── audio/
 │   └── audio_manager.py       # AudioManager — 3 通道音频（BGM/Voice/SE）
 ├── graphics/
-│   ├── sprite_actor.py        # SpriteActor — 精灵封装 + 补间动画
+│   ├── sprite_actor.py        # SpriteActor — 精灵封装 + 4 种补间动画
 │   ├── layer.py               # LayerManager — 6 层渲染 + 淡入淡出
-│   └── ui.py                  # UIManager — 对话框 / 选项 / 回看 / 设置
+│   ├── ui.py                  # UIManager — 对话框 / 选项 / 回看 / 设置面板
+│   ├── gallery.py             # 鉴赏模式 — CG 画廊 / 音乐欣赏 / 立绘鉴赏
+│   └── main_menu.py           # 主菜单 — 图形化按钮 + 键盘/鼠标交互
 ├── script/
 │   ├── commands.py            # Command ABC + 11 具体指令
-│   ├── parser.py              # .ws 脚本解析器
-│   └── executor.py            # ScriptExecutor — 生成器驱动脚本执行
+│   ├── parser.py              # .ws 脚本解析器（PrimaryLexer → Lexer → Parser）
+│   ├── executor.py            # ScriptExecutor — 生成器驱动脚本执行
+│   ├── script_debug.py        # 脚本调试 — 编译 .ws 为 CPython 字节码
+│   └── magic_tool.py          # CPython 3.13 行表/异常表编码工具
 ├── systems/
-│   ├── resource.py            # ResourceManager — LRU 缓存 + 后台预加载
+│   ├── resource.py            # ResourceManager — LRU 缓存 + 线程后台预加载
 │   └── save_system.py         # SaveSystem — JSON + MD5 + 原子写入
-├── modes/
-│   └── gallery.py             # 鉴赏模式 — CG 画廊 / 音乐欣赏 / 立绘鉴赏
 ├── resources/
-│   ├── data/                  # JSON 配置（gallery / music / characters）
+│   ├── data/                  # JSON 配置（gallery.json / music.json / characters.json）
+│   ├── images/                # 背景（校门/教室/客厅/商场/家门口）+ 春日野穹立绘差分
 │   └── scripts/               # 剧本文件（title.ws / prologue.ws）
 └── tests/
-    ├── conftest.py             # 统一 mock 环境
-    ├── test_event_bus.py       # 7 个
-    ├── test_resource.py        # 13 个
-    ├── test_sprite_actor.py    # 17 个
-    ├── test_layer.py           # 13 个
-    ├── test_audio.py           # 14 个
-    ├── test_script.py          # 22 个
-    ├── test_save.py            # 13 个
-    └── test_ui.py              # 27 个
+    ├── _mocks.py              # 统一 mock 环境（pyglet / PIL）
+    ├── test_event_bus.py      # 7 个
+    ├── test_resource.py       # 13 个
+    ├── test_sprite_actor.py   # 17 个
+    ├── test_layer.py          # 13 个
+    ├── test_audio.py          # 14 个
+    ├── test_script.py         # 19 个
+    ├── test_save.py           # 13 个
+    ├── test_ui.py             # 27 个
+    └── test_main_menu.py      # 6 个
 ```
 
 ## 快速开始
@@ -57,11 +61,12 @@ python main.py
 | 按键 | 功能 |
 |------|------|
 | `F11` | 全屏切换 |
-| `ESC` | 退出 / 鉴赏模式返回 |
+| `ESC` | 退出 / 鉴赏模式返回 / 关闭设置或回看 |
+| `↑` | 打开对话回看 / 选项菜单上移 |
+| `↓` | 选项菜单下移 |
+| `Enter` / `Space` | 选项确认 |
 | 鼠标左键 | 推进对话 / 点击交互 |
-| 鼠标滚轮 | 回看滚动 / 画廊滚动 |
-| `↑ ↓` | 选项菜单导航 |
-| `Enter` | 选项确认 |
+| 鼠标滚轮 | 回看滚动 / 画廊滚动 / 音乐列表滚动 |
 
 ## 核心设计
 
@@ -70,16 +75,17 @@ python main.py
 引擎按 `GameState` 枚举分发 update / draw / 输入：
 
 ```
-TITLE → NOVEL → CG_GALLERY / MUSIC_ROOM / CHARACTER_VIEWER
+TITLE → NOVEL → CG_GALLERY / MUSIC_ROOM / CHARACTER_VIEWER / SETTINGS
   ↑        ↓
   └────────┘ (scene_end / ESC)
 ```
 
-- **TITLE**: 标题画面（剧本驱动，BGM + 选项菜单）
+- **TITLE**: 标题画面（主菜单图形按钮 + 背景遮罩）
 - **NOVEL**: 视觉小说模式（脚本执行 + 图层渲染 + UI）
-- **CG_GALLERY**: CG 画廊（缩略图网格 → 全屏翻页）
-- **MUSIC_ROOM**: 音乐欣赏（列表 + 播放/暂停 + 进度条）
-- **CHARACTER_VIEWER**: 立绘鉴赏（部件切换 + 截图保存）
+- **CG_GALLERY**: CG 画廊（4 列缩略图网格 → 全屏翻页，仅已解锁）
+- **MUSIC_ROOM**: 音乐欣赏（曲目列表 + 播放/暂停 + 进度条，按旗标解锁）
+- **CHARACTER_VIEWER**: 立绘鉴赏（部件切换变体 + 截图保存 PNG）
+- **SETTINGS**: 设置面板（音量和文本速度滑块 + 全屏切换）
 
 ### EventBus — 弱引用事件总线
 
@@ -108,7 +114,7 @@ Layer  2: audio                      — 3 通道音频 (BGM/Voice/SE)
 Layer  3: save_system                — JSON+MD5 原子存档
 Layer  4: script_executor            — .ws 剧本执行
 Layer 10: layers / ui_manager        — 6 层渲染 + 对话框/选项/回看/设置
-附加:     cg_gallery / music_room / character_viewer
+附加:     cg_gallery / music_room / character_viewer / main_menu
 ```
 
 `update(dt)` / `draw()` / `on_click()` / `handle_mouse_*` 全部按 `GameState` 分发。
@@ -116,25 +122,43 @@ Layer 10: layers / ui_manager        — 6 层渲染 + 对话框/选项/回看/�
 ### .ws 剧本系统
 
 ```
-@scene classroom           # 场景切换
-@bgm bgm01                 # BGM
+@scene classroom           # 场景切换（自动匹配 images/classroom.png）
+@bgm bgm01                 # BGM 切换
 @show rei smile at center  # 显示立绘（支持多词位置如 "far left"）
 @hide rei                  # 隐藏立绘
 @flag met_rei true         # 设置旗标
-@if met_rei                # 条件分支
+@flag cg001_seen true      # CG 解锁旗标
+@if met_rei                # 条件分支（假则跳过下一条指令）
 @jump target               # 无条件跳转
 @label target              # 跳转标签
 @choice                    # 选项菜单
 "一起吃饭": jump lunch
 "拒绝": jump decline
-"玲，早上好～"              # 对话（逗号前为说话人，无逗号即旁白）
-"前辈，今天天气真好～"[voice:rei_001]  # 带语音的对话
+"玲，早上好～"              # 对话（无逗号即旁白）
+"前辈，今天天气真好～"       # 对话（逗号前为说话人）
 @end                       # 场景结束
+
+# 这是注释（井号开头）
 ```
 
+- **三层解析器**：PrimaryLexer（正则词法）→ Lexer（转义/字符串/注释）→ Parser（指令识别）
 - **生成器驱动**：阻塞命令（对话/选项）yield 等待下一帧，非阻塞命令自动推进。
 - **无限循环保护**：连续执行超过 `MAX_SCRIPT_ADVANCE=1000` 条强制停止。
 - **选项处理**：选项菜单通过 `"choice"` / `"choice_selected"` 事件与 UI 联动。
+- **条件分支**：`@if` 检查旗标，真则继续，假则跳过下一条指令。
+- **注释支持**：`#` 开头到行尾，自动跳过。
+
+### 脚本调试器 — CPython 字节码编译
+
+可将 .ws 脚本编译为 CPython 3.13 字节码，生成的可执行代码对象可直接调用，用于调试跟踪。
+
+```
+@jump l         → LOAD_CONST l → YIELD_VALUE → ... → JUMP_FORWARD/BACKWARD
+@if f           → LOAD_CONST f → YIELD_VALUE → ... → TO_BOOL → POP_JUMP_IF_FALSE
+@choice          → LOAD_CONST ((x, act, lbl), ...) → YIELD_VALUE → COPY → COMPARE_OP → ...
+```
+
+依赖 CPython 3.13+ 内部机制（行表 / 异常表编码）。
 
 ### ResourceManager — 惰性加载 + LRU 缓存 + 后台预加载
 
@@ -183,7 +207,7 @@ lm.draw()
 
 - **6 层**：`BG → BEHIND → MID → FRONT → EFFECTS → UI`，`Group(order=N)` + 共享 `Batch`。
 - **层管理器开放 API**：`batch` 属性 + `get_group(layer)` 供 UI 和鉴赏模式使用。
-- **淡入淡出**：可配置覆盖颜色，自动释放旧 overlay。
+- **淡入淡出**：可配置覆盖颜色（黑/白/红），自动释放旧 overlay。
 - **死精灵清理**：即使 `dt=0` 也清理已删除 actor。
 
 ### AudioManager — 3 通道音频
@@ -203,6 +227,7 @@ audio.resume_all()
 - **Voice**：新语音自动中断上一句。
 - **SE**：8 播放器池，round-robin 分配。
 - **set_volume**：主动取消进行中的淡出。
+- **设备检测**：构造时自动探测音频设备，不可用时所有方法静默跳过。
 
 ### UI 模块
 
@@ -211,12 +236,13 @@ audio.resume_all()
 | `DialogBox` | 打字机效果 + 说话人 + 闪烁点击提示 + 对话历史自动记录 |
 | `ChoiceMenu` | 垂直按钮列表 + 键盘上下/回车 + 鼠标悬停高亮 + 选中 emit 事件 |
 | `BacklogViewer` | 全屏半透明遮罩 + 滚轮滚动 + 点击空白关闭 |
-| `SettingsPanel` | BGM/Voice/SE 音量滑块 + 文本速度滑块 + 全屏切换 |
+| `SettingsPanel` | BGM/Voice/SE 音量滑块 + 文本速度滑块 + 菜单遮罩滑块 + 全屏切换 |
 | `UIManager` | 事件路由（settings > backlog > choice > dialog） |
 
 - 百分比定位，分辨率无关。
 - 依赖注入（Batch / Group / EventBus / AudioManager）。
 - 交互逻辑与绘制分离，可纯状态测试。
+- **↑ 键快捷打开对话回看**（DialogBox 可见时）。
 
 ### SaveSystem — 存档管理
 
@@ -240,10 +266,23 @@ ss.save_thumbnail(slot=1, png_bytes)
 | 模式 | 说明 |
 |------|------|
 | `CGGallery` | 4 列缩略图网格 → 点击全屏查看 → 左右翻页（仅已解锁）。未解锁灰色占位。 |
-| `MusicRoom` | 垂直曲目列表 + 播放/暂停 + 进度条。按旗标解锁。 |
-| `CharacterViewer` | 角色部件分层叠放 → 点击切换变体 → 截图保存 PNG。 |
+| `MusicRoom` | 垂直曲目列表 + 播放/暂停 + 进度条。按旗标解锁。滚动列表。 |
+| `CharacterViewer` | 左侧面板角色选择 → 部件切换变体（表情/服装/姿态）→ 截图保存 PNG。 |
 
 JSON 配置文件路径从 `AppConfig` 读取。
+
+### 主菜单
+
+图形化标题画面，提供 7 个按钮：
+
+```
+开始游戏 → 继续游戏 → CG 画廊 → 音乐欣赏 → 立绘鉴赏 → 设置 → 退出游戏
+```
+
+- 背景遮罩让文字更清晰，透明度可通过设置面板调节。
+- 键盘 `↑↓` 导航 + `Enter/Space` 确认。
+- 鼠标悬停高亮 + 左侧高亮条。
+- 选中通过 event_bus 发出 `"menu_select"` 事件，由 Game 层按 tag 分发。
 
 ## 配置
 
@@ -266,17 +305,32 @@ config = AppConfig(
 ## 开发
 
 ```bash
-# 类型检查（mypy --strict）
-mypy . --strict
+# 类型检查（pyright）
+pyright
 
 # 运行测试（全 mock，零 GPU 依赖）
 pytest tests/ -v
 ```
 
-- **Python 3.10+**
-- **mypy `--strict` 零错误**（14 source files）
-- **130 个单元测试**（unittest）：event_bus(7) + audio(14) + resource(13) + sprite_actor(16) + layer(13) + save(13) + script(20) + ui(27) + main_menu(7)
+- **Python 3.10+**（解析器使用 3.12 泛型语法；`script_debug.py` 需要 CPython 3.13+）
+- **129 个单元测试**：event_bus(7) + resource(13) + sprite_actor(17) + layer(13) + audio(14) + script(19) + save(13) + ui(27) + main_menu(6)
 - 全部测试 mock 掉 pyglet / PIL，CI 可跑
+
+### 测试文件
+
+所有测试使用 `tests/_mocks.py` 注入统一 mock 环境：
+
+```python
+# 在测试文件头部
+import tests._mocks  # 自动 mock pyglet + PIL
+```
+
+## 更新历史
+
+- **refactor: 将 modes 包合并到 graphics** — `modes/` 删除，gallery/main_menu 移到 `graphics/`
+- **UP 键快捷打开对话回看** — DialogBox 可见时按 ↑ 打开 BacklogViewer
+- **脚本解析器重构** — 新增三层解析架构（PrimaryLexer/Lexer/Parser），支持转义序列、字符串字面量、注释
+- **新增脚本调试工具** — 将 .ws 脚本编译为 CPython 3.13 字节码
 
 ## License
 
