@@ -56,18 +56,21 @@ class TestParser(unittest.TestCase):
         cmds = parse(path)
         self.assertEqual(len(cmds), 1)
         self.assertIsInstance(cmds[0], SceneCommand)
+        assert isinstance(cmds[0], SceneCommand)
         self.assertEqual(cmds[0].scene_id, "classroom")
 
     def test_parse_bgm(self) -> None:
         path = _write_ws("@bgm happy01\n")
         cmds = parse(path)
         self.assertIsInstance(cmds[0], BGMCommand)
+        assert isinstance(cmds[0], BGMCommand)
         self.assertEqual(cmds[0].track, "happy01")
 
     def test_parse_show(self) -> None:
         path = _write_ws("@show rei uniform_smile at center\n")
         cmds = parse(path)
         self.assertIsInstance(cmds[0], ShowCommand)
+        assert isinstance(cmds[0], ShowCommand)
         self.assertEqual(cmds[0].char, "rei")
         self.assertEqual(cmds[0].pose, "uniform_smile")
         self.assertEqual(cmds[0].position, "center")
@@ -77,6 +80,7 @@ class TestParser(unittest.TestCase):
         path = _write_ws('"玲" "早上好"\n')
         cmds = parse(path)
         self.assertIsInstance(cmds[0], DialogueCommand)
+        assert isinstance(cmds[0], DialogueCommand)
         self.assertEqual(cmds[0].speaker, "玲")
         self.assertEqual(cmds[0].text, "早上好")
 
@@ -85,6 +89,7 @@ class TestParser(unittest.TestCase):
         path = _write_ws('"窗外阳光明媚。"\n')
         cmds = parse(path)
         self.assertIsInstance(cmds[0], DialogueCommand)
+        assert isinstance(cmds[0], DialogueCommand)
         self.assertEqual(cmds[0].speaker, "")
         self.assertEqual(cmds[0].text, "窗外阳光明媚。")
 
@@ -94,6 +99,7 @@ class TestParser(unittest.TestCase):
         cmds = parse(path)
         cmd = cmds[0]
         self.assertIsInstance(cmd, DialogueCommand)
+        assert isinstance(cmd, DialogueCommand)
         self.assertEqual(cmd.voice, "rei_001")
         self.assertEqual(cmd.speaker, "前辈")
 
@@ -105,6 +111,7 @@ class TestParser(unittest.TestCase):
         )
         cmds = parse(path)
         self.assertIsInstance(cmds[0], ChoiceCommand)
+        assert isinstance(cmds[0], ChoiceCommand)
         self.assertEqual(len(cmds[0].choices), 2)
         self.assertEqual(cmds[0].choices[0], ("一起吃饭", "jump", "lunch_event"))
         self.assertEqual(cmds[0].choices[1], ("去图书馆", "jump", "library_event"))
@@ -114,12 +121,14 @@ class TestParser(unittest.TestCase):
         cmds = parse(path)
         self.assertIsInstance(cmds[0], LabelCommand)
         self.assertIsInstance(cmds[1], JumpCommand)
+        assert isinstance(cmds[1], JumpCommand)
         self.assertEqual(cmds[1].label, "start")
 
     def test_parse_flag(self) -> None:
         path = _write_ws("@flag met_rei true\n")
         cmds = parse(path)
         self.assertIsInstance(cmds[0], FlagCommand)
+        assert isinstance(cmds[0], FlagCommand)
         self.assertEqual(cmds[0].name, "met_rei")
         self.assertTrue(cmds[0].value)
 
@@ -127,6 +136,7 @@ class TestParser(unittest.TestCase):
         path = _write_ws("@if met_rei\n")
         cmds = parse(path)
         self.assertIsInstance(cmds[0], IfCommand)
+        assert isinstance(cmds[0], IfCommand)
         self.assertEqual(cmds[0].name, "met_rei")
 
     def test_parse_missing_file(self) -> None:
@@ -172,6 +182,7 @@ class TestExecutor(unittest.TestCase):
         # 当前命令仍是第一个对话（阻塞）
         cmd = exe.current_command
         self.assertIsInstance(cmd, DialogueCommand)
+        assert isinstance(cmd, DialogueCommand)
         self.assertEqual(cmd.text, "你好")
 
     def test_executor_jump(self) -> None:
@@ -190,6 +201,7 @@ class TestExecutor(unittest.TestCase):
 
         cmd = exe.current_command
         self.assertIsInstance(cmd, DialogueCommand)
+        assert isinstance(cmd, DialogueCommand)
         self.assertEqual(cmd.text, "到达目标")
 
     def test_executor_flag_and_if_true(self) -> None:
@@ -211,6 +223,7 @@ class TestExecutor(unittest.TestCase):
 
         cmd = exe.current_command
         self.assertIsInstance(cmd, DialogueCommand)
+        assert isinstance(cmd, DialogueCommand)
         self.assertEqual(cmd.text, "跳转成功")
 
     def test_executor_flag_and_if_false(self) -> None:
@@ -232,6 +245,7 @@ class TestExecutor(unittest.TestCase):
 
         cmd = exe.current_command
         self.assertIsInstance(cmd, DialogueCommand)
+        assert isinstance(cmd, DialogueCommand)
         self.assertEqual(cmd.text, "不应被跳过")
 
     def test_executor_loop_protection(self) -> None:
