@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import tests._mocks  # noqa: F401 — pyglet mock setup
 
-from graphics.main_menu import MainMenu
+from src.graphics.main_menu import MainMenu
 
 
 class TestMainMenu(unittest.TestCase):

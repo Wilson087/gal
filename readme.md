@@ -6,29 +6,30 @@
 ## 项目结构
 
 ```
-├── config.py                  # 全局常量 + AppConfig dataclass
-├── main.py                    # GameWindow 入口（vsync / 60fps / 焦点暂停）
-├── core/
-│   ├── events.py              # Event 枚举 + GameState 枚举 + EventBus（弱引用）
-│   ├── game.py                # Game 中枢 — 12 子系统 + 状态机分发
-│   └── state.py               # SaveData / CharEntry 存档数据容器
-├── audio/
-│   └── audio_manager.py       # AudioManager — 3 通道音频（BGM/Voice/SE）
-├── graphics/
-│   ├── sprite_actor.py        # SpriteActor — 精灵封装 + 4 种补间动画
-│   ├── layer.py               # LayerManager — 6 层渲染 + 淡入淡出
-│   ├── ui.py                  # UIManager — 对话框 / 选项 / 回看 / 设置面板
-│   ├── gallery.py             # 鉴赏模式 — CG 画廊 / 音乐欣赏 / 立绘鉴赏
-│   └── main_menu.py           # 主菜单 — 图形化按钮 + 键盘/鼠标交互
-├── script/
-│   ├── commands.py            # Command ABC + 11 具体指令
-│   ├── parser.py              # .ws 脚本解析器（PrimaryLexer → Lexer → Parser）
-│   ├── executor.py            # ScriptExecutor — 生成器驱动脚本执行
-│   ├── script_debug.py        # 脚本调试 — 编译 .ws 为 CPython 字节码
-│   └── magic_tool.py          # CPython 3.13 行表/异常表编码工具
-├── systems/
-│   ├── resource.py            # ResourceManager — LRU 缓存 + 线程后台预加载
-│   └── save_system.py         # SaveSystem — JSON + MD5 + 原子写入
+├── src/                       # 源代码目录
+│   ├── main.py                # GameWindow 入口（vsync / 60fps / 焦点暂停）
+│   ├── config.py              # 全局常量 + AppConfig dataclass
+│   ├── audio/
+│   │   └── audio_manager.py   # AudioManager — 3 通道音频（BGM/Voice/SE）
+│   ├── core/
+│   │   ├── events.py          # Event 枚举 + GameState 枚举 + EventBus（弱引用）
+│   │   ├── game.py            # Game 中枢 — 12 子系统 + 状态机分发
+│   │   └── state.py           # SaveData / CharEntry 存档数据容器
+│   ├── graphics/
+│   │   ├── sprite_actor.py    # SpriteActor — 精灵封装 + 4 种补间动画
+│   │   ├── layer.py           # LayerManager — 6 层渲染 + 淡入淡出
+│   │   ├── ui.py              # UIManager — 对话框 / 选项 / 回看 / 设置面板
+│   │   ├── gallery.py         # 鉴赏模式 — CG 画廊 / 音乐欣赏 / 立绘鉴赏
+│   │   └── main_menu.py       # 主菜单 — 图形化按钮 + 键盘/鼠标交互
+│   ├── script/
+│   │   ├── commands.py        # Command ABC + 11 具体指令
+│   │   ├── parser.py          # .ws 脚本解析器（PrimaryLexer → Lexer → Parser）
+│   │   ├── executor.py        # ScriptExecutor — 生成器驱动脚本执行
+│   │   ├── script_debug.py    # 脚本调试 — 编译 .ws 为 CPython 字节码
+│   │   └── magic_tool.py      # CPython 3.13 行表/异常表编码工具
+│   └── systems/
+│       ├── resource.py        # ResourceManager — LRU 缓存 + 线程后台预加载
+│       └── save_system.py     # SaveSystem — JSON + MD5 + 原子写入
 ├── resources/
 │   ├── data/                  # JSON 配置（gallery.json / music.json / characters.json）
 │   ├── images/                # 背景（校门/教室/客厅/商场/家门口）+ 春日野穹立绘差分
@@ -53,7 +54,7 @@
 pip install pyglet Pillow
 
 # 启动引擎
-python main.py
+python src/main.py
 ```
 
 ### 窗口操作
@@ -134,8 +135,8 @@ Layer 10: layers / ui_manager        — 6 层渲染 + 对话框/选项/回看/�
 @choice                    # 选项菜单
 "一起吃饭": jump lunch
 "拒绝": jump decline
-"玲，早上好～"              # 对话（无逗号即旁白）
-"前辈，今天天气真好～"       # 对话（逗号前为说话人）
+"玲" "早上好～"             # 对话
+"今天天气晴朗"              # 对话（旁白）
 @end                       # 场景结束
 
 # 这是注释（井号开头）

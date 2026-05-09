@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import tests._mocks  # noqa: F401 — pyglet mock setup
 
-from graphics.layer import LayerManager, Layer
+from src.graphics.layer import LayerManager, Layer
 
 # 引用 _mocks.py 注入的 mock
 _mock_pyglet = sys.modules["pyglet"]

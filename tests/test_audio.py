@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import tests._mocks  # noqa: F401 — pyglet mock setup
 
-from audio.audio_manager import AudioManager
+from src.audio.audio_manager import AudioManager
 
 # 引用 _mocks.py 注入的 mock
 _mock_pyglet = sys.modules["pyglet"]

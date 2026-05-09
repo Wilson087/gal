@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import tests._mocks  # noqa: F401 — pyglet mock setup
 
-from graphics.sprite_actor import (
+from src.graphics.sprite_actor import (
     SpriteActor,
     linear,
     ease_in_out_quad,
