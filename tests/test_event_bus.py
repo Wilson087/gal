@@ -13,7 +13,7 @@ from typing import Any
 # core.__init__ 会加载 game.py → import pyglet，需提前 mock
 import tests._mocks  # noqa: F401
 
-from core.events import EventBus, Event
+from src.core.events import EventBus, Event
 
 
 class _Listener:

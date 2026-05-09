@@ -10,6 +10,8 @@
 import sys
 from unittest.mock import MagicMock
 
+sys.path.insert(0, "./src/")
+
 # ── pyglet ─────────────────────────────────────────────────
 _mock_pyglet = MagicMock()
 _mock_pyglet.__path__ = []

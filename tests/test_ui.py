@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 
 import tests._mocks  # noqa: F401 — pyglet mock setup
 
-from core.events import Event
-from graphics.ui import (
+from src.core.events import Event
+from src.graphics.ui import (
     UIElement,
     DialogBox,
     ChoiceMenu,

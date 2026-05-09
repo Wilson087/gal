@@ -15,8 +15,8 @@ from unittest.mock import MagicMock
 # 脚本文件不直接 import pyglet，但 executor 通过 Game 间接依赖
 import tests._mocks  # noqa: F401
 
-from script.parser import parse
-from script.commands import (
+from src.script.parser import parse
+from src.script.commands import (
     BGMCommand,
     ChoiceCommand,
     DialogueCommand,
@@ -27,7 +27,7 @@ from script.commands import (
     SceneCommand,
     ShowCommand,
 )
-from script.executor import ScriptExecutor
+from src.script.executor import ScriptExecutor
 
 
 def _write_ws(content: str) -> str:

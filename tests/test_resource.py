@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import tests._mocks  # noqa: F401 — pyglet + PIL mock setup
 
-from systems.resource import (
+from src.systems.resource import (
     ResourceManager,
     _PreloadedImage,
     _PreloadedAudio,

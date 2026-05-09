@@ -19,15 +19,14 @@ from __future__ import annotations
 
 import logging
 import weakref
-from enum import Enum, auto
+from enum import Enum, auto, StrEnum
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 CallbackType = Callable[..., None]
 
-
-class Event(Enum):
+class Event(StrEnum):
     """预定义引擎事件。
 
     自动转换为小写蛇形字符串名，如 ``Event.CLICK`` → ``"click"``。
@@ -60,9 +59,6 @@ class Event(Enum):
     # 存档
     SAVE = auto()
     LOAD = auto()
-
-    def __str__(self) -> str:
-        return self.name.lower()
 
 
 class GameState(Enum):

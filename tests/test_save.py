@@ -17,8 +17,8 @@ from pathlib import Path
 # core.__init__ 会加载 game.py → import pyglet，需提前 mock
 import tests._mocks  # noqa: F401
 
-from core.state import CharEntry, SaveData
-from systems.save_system import SaveSystem
+from src.core.state import CharEntry, SaveData
+from src.systems.save_system import SaveSystem
 
 
 class TestSaveSystem(unittest.TestCase):
