@@ -14,7 +14,7 @@ from contextlib import suppress
 from functools import partial
 from operator import contains
 from collections.abc import Callable, Generator, Iterable, Iterator
-from typing import Any, NamedTuple, NoReturn, Optional, Self, Sequence, TextIO, overload
+from typing import Any, NamedTuple, NoReturn, Optional, Self, Sequence, TextIO, overload, Protocol
 
 from .commands import (
     BGMCommand,
@@ -29,11 +29,21 @@ from .commands import (
     SceneCommand,
     ShowCommand,
 )
+from . import script_debug
 
 logger = logging.getLogger(__name__)
 
+class _Debugger(Protocol):
 
-def parse(filepath: str) -> list[Command]:
+    def __call__(self, values: dict[str, Any]): ...
+    
+    def next(self) -> Any: ...
+
+    def send(self, value: Any) -> Any: ...
+
+
+
+def parse(filepath: str) -> tuple[list[Command], _Debugger]:
     """解析 .ws 脚本文件，返回命令列表。
 
     Args:
@@ -47,7 +57,13 @@ def parse(filepath: str) -> list[Command]:
     """
     try:
         with open(filepath, "r", encoding="utf-8") as f:
-            return [*Parser(f).parse()]
+            p = Parser(f)
+            cmds = [*p.parse()]
+            try:
+                d = p.debug_builder.debugger()
+            except Exception:
+                d = script_debug.DummyDebugger()
+            return cmds, d
     except FileNotFoundError:
         logger.error("脚本文件不存在: %s", filepath)
         raise
@@ -217,8 +233,6 @@ class Lexer(PeekableIterator[Token]):
         return Location(self._erow, self._ecol, self._erow, self._ecol)
 
     def _new_line(self):
-        # with suppress(StopIteration):
-        #     self._lexer.next()
         self._line += 1
         self._line_start = self._token.value.end()
 
@@ -369,6 +383,9 @@ class Lexer(PeekableIterator[Token]):
         self._start()
 
         for t in self._lexer:
+            if t.value.start() < self._line_start:
+                self._line_start = self._line_start - self._token.value.end()
+
             self._token = t
 
             if t.type == PrimaryTokenType.BACKSLASH:
@@ -390,6 +407,10 @@ class Lexer(PeekableIterator[Token]):
         self._start()
 
         for t in self._lexer:
+
+            if t.value.start() < self._line_start:
+                self._line_start = self._line_start - self._token.value.end()
+            
             self._token = t
             if t.type == PrimaryTokenType.BACKSLASH:
                 literal.append(self._escape())
@@ -433,6 +454,9 @@ class Lexer(PeekableIterator[Token]):
     def tokenize(self) -> Generator[Token]:
         while (t := self._lexer.peek(None)) is not None:
             
+            if t.value.start() < self._line_start:
+                self._line_start = self._line_start - self._token.value.end()
+
             self._token = t
 
             match t.type:
@@ -471,6 +495,8 @@ class Parser:
 
         self._lexer = Lexer(source)
 
+        self.debug_builder = script_debug.Builder(str(source.name))
+
     def _get_token(self, condition: Callable[[Token], Any], fail: Callable[[], Any]) -> Token:
         t = self._lexer.peek()
         if not condition(t):
@@ -490,61 +516,93 @@ class Parser:
         return _callback
 
     def _scene(self) -> SceneCommand:
-        self._lexer.next()
+        c_t = self._lexer.next()
+        t = self._get_token(
+            self._is_literal,
+            fail=self._err("缺少场景id")
+        )
+        self.debug_builder.append_command(
+            script_debug.Command(t.value, c_l=c_t.location, p_l=t.location)
+        )
         return SceneCommand(
-            scene_id=self._get_token(
-                self._is_literal,
-                self._err("缺少场景id")
-            ).value
+            scene_id=t.value
         )
     
     def _bgm(self) -> BGMCommand:
-        self._lexer.next()
-        return BGMCommand(
-            track=self._get_token(
-                self._is_literal,
-                self._err("缺少背景音乐id")
-            ).value
+        c_t = self._lexer.next()
+        t = self._get_token(
+            self._is_literal,
+            self._err("缺少背景音乐id")
         )
-        
-    
+        self.debug_builder.append_command(
+            script_debug.Command(t.value, c_l=c_t.location, p_l=t.location)
+        )
+        return BGMCommand(
+            track=t.value
+        )
+
     def _show(self) -> ShowCommand:
-        self._lexer.next()
+        c_t = self._lexer.next()
 
         char = self._get_token(
             self._is_literal,
             self._err("缺少角色id")
-        ).value
+        )
 
         pose = self._get_token(
             self._is_literal,
             self._err("缺少角色姿态")
-        ).value
+        )
 
         t = self._lexer.peek()
         if not self._is_literal(t) or t.value != "at":
-            return ShowCommand(char=char, pose=pose, position="")
+            self.debug_builder.append_command(
+                script_debug.Command((char.value, pose.value), c_l=c_t.location, p_l=(
+                    char.location.srow, 
+                    char.location.scol,
+                    pose.location.erow,
+                    pose.location.ecol
+                ))
+            )
+            return ShowCommand(char=char.value, pose=pose.value, position="")
         self._lexer.next()
         
         position = deque()
+        erow = pose.location.erow
+        ecol = pose.location.ecol
         while True:
             t = self._lexer.peek()
             if not self._is_literal(t):
                 break
+            erow = t.location.erow
+            ecol = t.location.ecol
             position.append(self._lexer.next().value)
 
-        return ShowCommand(char=char, pose=pose, position=" ".join(position))
-
-    def _hide(self) -> HideCommand:
-        self._lexer.next()
-        return HideCommand(
-            char=self._get_token(
-                self._is_literal,
-                self._err("缺少角色id")
-            ).value
+        self.debug_builder.append_command(
+            script_debug.Command((char.value, pose.value, " ".join(position)), c_l=c_t.location, p_l=(
+                char.location.srow, 
+                char.location.scol,
+                erow,
+                ecol
+            ))
         )
 
-    def _choice_line(self) -> Optional[Token | tuple[str, str, str]]:
+        return ShowCommand(char=char.value, pose=pose.value, position=" ".join(position))
+
+    def _hide(self) -> HideCommand:
+        c_t = self._lexer.next()
+        t = self._get_token(
+            self._is_literal,
+            self._err("缺少角色id")
+        )
+        self.debug_builder.append_command(
+            script_debug.Command(t.value, c_l=c_t.location, p_l=t.location)
+        )
+        return HideCommand(
+            char=t.value
+        )
+
+    def _choice_line(self) -> Optional[Token | tuple[str, str, str, tuple[Location, Location, Location]]]:
         t = self._lexer.peek(None)
         if t is None or not self._is_literal(t):
             return
@@ -559,27 +617,28 @@ class Parser:
         action = self._get_token(
             self._is_literal,
             self._err("缺少动作")
-        ).value
+        )
 
         label = self._get_token(
             self._is_literal,
             self._err("缺少动作参数")
-        ).value
+        )
 
         t = self._lexer.peek()
         if t.type == TokenType.NEWLINE:
             self._lexer.next()
 
-        return text, action, label
+        return text, action.value, label.value, (text_token.location, action.location, label.location)
 
     def _choice(self) -> tuple[ChoiceCommand, Optional[Token]]:
-        self._lexer.next()
+        c_t = self._lexer.next()
 
         t = self._lexer.peek()
         if t.type == TokenType.NEWLINE:
             self._lexer.next()
 
         choices = deque()
+        choice_locations = deque()
         t = None
 
         while True:
@@ -589,57 +648,87 @@ class Parser:
                 t = c
                 break
             elif isinstance(c, tuple):
-                choices.append(c)
+                choices.append(c[:3])
+                choice_locations.append(c[-1])
             elif c is None:
                 break
+
+        self.debug_builder.append_command(
+            script_debug.Choice(tuple(choices), c_l=c_t.location, p_ls=choice_locations)
+        )
 
         return ChoiceCommand(choices=[*choices]), t
 
     def _label(self) -> LabelCommand:
-        self._lexer.next()
+        c_t = self._lexer.next()
+        t = self._get_token(
+            self._is_literal,
+            self._err("缺少标签")
+        )
+        self.debug_builder.append_command(
+            script_debug.Label(t.value, c_l=c_t.location, p_l=t.location)
+        )
         return LabelCommand(
-            label=self._get_token(
-                self._is_literal,
-                self._err("缺少标签")
-            ).value
+            label=t.value
         )
     
     def _jump(self) -> JumpCommand:
-        self._lexer.next()
+        c_t = self._lexer.next()
+        t = self._get_token(
+            self._is_literal,
+            self._err("缺少标签")
+        )
+        self.debug_builder.append_command(
+            script_debug.Jump(t.value, c_l=c_t.location, p_l=t.location)
+        )
         return JumpCommand(
-            label=self._get_token(
-                self._is_literal,
-                self._err("缺少标签")
-            ).value
+            label=t.value
         )
     
     def _flag(self) -> FlagCommand:
-        self._lexer.next()
+        c_t = self._lexer.next()
 
         name = self._get_token(
             self._is_literal,
             self._err("缺少名称")
-        ).value
+        )
+        n_l = name.location
+        name = name.value
 
         value = self._get_token(
             self._is_literal,
             self._err("缺少值")
-        ).value
+        )
+        v_l = value.location
+        value = value.value
 
         if value.lower() not in ("true", "1", "yes", "false", "0", "no"):
             raise ScriptSyntaxError("无法识别的值")
         
         value = value.lower() in ("true", "1", "yes")
 
+        self.debug_builder.append_command(
+            script_debug.Command((name, value), c_l=c_t.location, p_l=(
+                n_l.srow, 
+                n_l.scol,
+                v_l.erow,
+                v_l.ecol
+            ))
+        )
+
         return FlagCommand(name=name, value=value)
     
     def _if(self) -> IfCommand:
-        self._lexer.next()
+        c_t = self._lexer.next()
+        t = self._get_token(
+            self._is_literal,
+            self._err("缺少名称")
+        )
+        self.debug_builder.append_command(
+            script_debug.If(t.value, c_l=c_t.location, p_l=t.location)
+        )
         return IfCommand(
-            name=self._get_token(
-                self._is_literal,
-                self._err("缺少名称")
-            ).value
+            name=t.value
         )
     
     def _dialogue(self, token: Token):
@@ -650,6 +739,10 @@ class Parser:
         if t is not None and self._is_literal(t):
             speaker = text
             text = self._lexer.next().value
+
+        self.debug_builder.append_command(
+            script_debug.Command((speaker, text), c_l=token.location, p_l=t.location if t is not None else token.location)
+        )
 
         return DialogueCommand(speaker=speaker, text=text)
 

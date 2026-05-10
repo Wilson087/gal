@@ -57,7 +57,7 @@ class ScriptExecutor:
         """
         if self.running:
             logger.warning("加载新脚本时将中止正在执行的脚本: %s", filepath)
-        self._commands = parse(filepath)
+        self._commands, self._debugger = parse(filepath)
         self._labels.clear()
         self._pc = 0
         self.running = False
@@ -80,6 +80,7 @@ class ScriptExecutor:
         self.running = True
         self._current = None
         self._waiting_dialogue = False
+        self._debugger(self._flags)
         logger.debug("脚本开始执行")
 
     # ── 每帧驱动 ──────────────────────────────────────────
@@ -131,8 +132,11 @@ class ScriptExecutor:
 
             # LabelCommand —— 跳过（仅标记）
             if isinstance(cmd, LabelCommand):
+                # self._debugger.next()
                 self._pc += 1
                 continue
+
+            self._debugger.next()
 
             if cmd.blocking:
                 # 阻塞命令：启动协程，等待下一帧
@@ -144,6 +148,7 @@ class ScriptExecutor:
                 return
             else:
                 # 非阻塞命令：驱动协程到底
+                # self._debugger.next()
                 try:
                     gen = cmd.execute(self._game)
                     next(gen)
@@ -182,6 +187,7 @@ class ScriptExecutor:
 
     def on_dialogue_next(self, **kwargs: Any) -> None:
         """玩家点击推进对话时调用（由 DIALOGUE_NEXT 事件触发）。"""
+        # self._debugger.next()
         self._waiting_dialogue = False
 
     # ── 选项回传 ──────────────────────────────────────────
@@ -205,7 +211,7 @@ class ScriptExecutor:
             self.jump(label)
         else:
             logger.error("选项索引无效: %d (共 %d 个选项)", index, len(cmd.choices))
-
+        self._debugger.send(index)
         self._waiting_choice = False
 
     # ── 状态查询 ──────────────────────────────────────────
@@ -226,7 +232,9 @@ class ScriptExecutor:
 
     def _handle_if(self, cmd: IfCommand) -> None:
         """处理 IfCommand：真 → 执行下一条；假 → 跳过下一条。"""
+        self._debugger.next()
         flag_value = self._flags.get(cmd.name, False)
+        self._debugger.send(flag_value)
         if not flag_value:
             # 假 → 跳过下一条（通常是 @jump）
             self._pc += 2
@@ -236,4 +244,5 @@ class ScriptExecutor:
 
     def _handle_jump(self, cmd: JumpCommand) -> None:
         """处理 JumpCommand：无条件跳转。"""
+        self._debugger.next()
         self.jump(cmd.label)
