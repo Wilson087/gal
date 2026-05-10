@@ -329,7 +329,7 @@ class Lexer(PeekableIterator[Token]):
             case _:
                 assert False, "unreachable"
 
-        l =+ 1
+        l += 1
 
         while True:
 
