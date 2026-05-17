@@ -14,7 +14,6 @@ __all__ = [
     "ease_in_out_quad",
     "UIManager",
     "DialogBox",
-    "ChoiceMenu",
     "BacklogViewer",
     "SettingsPanel",
     "CGGallery",
