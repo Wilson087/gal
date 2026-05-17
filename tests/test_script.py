@@ -53,7 +53,7 @@ class TestParser(unittest.TestCase):
 
     def test_parse_scene_cmd(self) -> None:
         path = _write_ws("@scene classroom\n")
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertEqual(len(cmds), 1)
         self.assertIsInstance(cmds[0], SceneCommand)
         assert isinstance(cmds[0], SceneCommand)
@@ -61,14 +61,14 @@ class TestParser(unittest.TestCase):
 
     def test_parse_bgm(self) -> None:
         path = _write_ws("@bgm happy01\n")
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], BGMCommand)
         assert isinstance(cmds[0], BGMCommand)
         self.assertEqual(cmds[0].track, "happy01")
 
     def test_parse_show(self) -> None:
         path = _write_ws("@show rei uniform_smile at center\n")
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], ShowCommand)
         assert isinstance(cmds[0], ShowCommand)
         self.assertEqual(cmds[0].char, "rei")
@@ -78,7 +78,7 @@ class TestParser(unittest.TestCase):
     def test_parse_dialogue(self) -> None:
         """解析对话"""
         path = _write_ws('"玲" "早上好"\n')
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], DialogueCommand)
         assert isinstance(cmds[0], DialogueCommand)
         self.assertEqual(cmds[0].speaker, "玲")
@@ -87,7 +87,7 @@ class TestParser(unittest.TestCase):
     def test_parse_dialogue_no_speaker(self) -> None:
         """无逗号时整段为旁白。"""
         path = _write_ws('"窗外阳光明媚。"\n')
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], DialogueCommand)
         assert isinstance(cmds[0], DialogueCommand)
         self.assertEqual(cmds[0].speaker, "")
@@ -96,7 +96,7 @@ class TestParser(unittest.TestCase):
     @unittest.skip("功能未实现")
     def test_parse_dialogue_voice_tag(self) -> None:
         path = _write_ws('"前辈，早上好～" [voice:rei_001]\n')
-        cmds = parse(path)
+        cmds, _ = parse(path)
         cmd = cmds[0]
         self.assertIsInstance(cmd, DialogueCommand)
         assert isinstance(cmd, DialogueCommand)
@@ -109,7 +109,7 @@ class TestParser(unittest.TestCase):
             '"一起吃饭": jump lunch_event\n'
             '"去图书馆": jump library_event\n'
         )
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], ChoiceCommand)
         assert isinstance(cmds[0], ChoiceCommand)
         self.assertEqual(len(cmds[0].choices), 2)
@@ -118,7 +118,7 @@ class TestParser(unittest.TestCase):
 
     def test_parse_label_and_jump(self) -> None:
         path = _write_ws("@label start\n@jump start\n")
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], LabelCommand)
         self.assertIsInstance(cmds[1], JumpCommand)
         assert isinstance(cmds[1], JumpCommand)
@@ -126,7 +126,7 @@ class TestParser(unittest.TestCase):
 
     def test_parse_flag(self) -> None:
         path = _write_ws("@flag met_rei true\n")
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], FlagCommand)
         assert isinstance(cmds[0], FlagCommand)
         self.assertEqual(cmds[0].name, "met_rei")
@@ -134,7 +134,7 @@ class TestParser(unittest.TestCase):
 
     def test_parse_if(self) -> None:
         path = _write_ws("@if met_rei\n")
-        cmds = parse(path)
+        cmds, _ = parse(path)
         self.assertIsInstance(cmds[0], IfCommand)
         assert isinstance(cmds[0], IfCommand)
         self.assertEqual(cmds[0].name, "met_rei")
